@@ -3,19 +3,26 @@ package org.example;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
-import javafx.scene.layout.StackPane;
+import javafx.scene.control.Label;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 public class Main extends Application {
+
     @Override
     public void start(Stage primaryStage) {
-        Button btn = new Button("点我!");
-        btn.setOnAction(e -> System.out.println("按钮被点击啦！"));
+        primaryStage.setTitle("JavaFX 测试窗口");
 
-        StackPane root = new StackPane(btn);
+        Label label = new Label("还没点击按钮");
+        Button btn = new Button("点击我");
+
+        btn.setOnAction(e -> label.setText("按钮被点击了！"));
+
+        VBox root = new VBox(20); // 20 是控件间距
+        root.getChildren().addAll(btn, label);
+        root.setStyle("-fx-padding: 30; -fx-alignment: center;");
+
         Scene scene = new Scene(root, 400, 300);
-
-        primaryStage.setTitle("JavaFX 测试");
         primaryStage.setScene(scene);
         primaryStage.show();
     }
