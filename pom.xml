@@ -8,44 +8,27 @@
     <groupId>org.example</groupId>
     <artifactId>hk</artifactId>
     <version>1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <modules>
+        <module>core</module>
+        <module>ui</module>
+        <module>utils</module>
+        <module>app</module>
+    </modules>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <javafx.version>20</javafx.version>
     </properties>
 
-    <!-- 1️⃣ 添加 JavaFX 依赖 -->
     <dependencies>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-controls</artifactId>
-            <version>${javafx.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-fxml</artifactId>
-            <version>${javafx.version}</version>
-        </dependency>
+        <!-- 这里可以先空着，等你要加JavaFX或其他依赖再加 -->
     </dependencies>
 
-    <!-- 2️⃣ 配置 JavaFX Maven 插件 -->
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-maven-plugin</artifactId>
-                <version>0.0.8</version>
-                <configuration>
-                    <mainClass>org.example.Main</mainClass>
-                    <options>
-                        <option>--add-opens=javafx.graphics/com.sun.javafx.tk=ALL-UNNAMED</option>
-                        <option>-Dglass.mac.disableScreenMenuBar=true</option>
-                        <option>-Dprism.order=sw</option>
-                    </options>
-                </configuration>
-            </plugin>
+            <!-- 如果不加插件，也可以先空着 -->
         </plugins>
     </build>
 </project>
