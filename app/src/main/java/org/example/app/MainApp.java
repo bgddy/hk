@@ -8,6 +8,9 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.example.core.SelectionSort;
 import org.example.ui.SelectionSortUI;
+import org.example.core.InsertSort;
+import org.example.ui.InsertsortUI;
+
 
 import java.util.Optional;
 
@@ -60,5 +63,7 @@ public class MainApp extends Application {
 
     public static void main(String[] args) {
         launch(args);
+
+
     }
 }

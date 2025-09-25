@@ -1,7 +1,6 @@
 package org.example.core;
 
 public class SelectionSort {
-
     // 返回排序步骤，用于可视化
     public int[][] sort(int[] arr) {
         int n = arr.length;
