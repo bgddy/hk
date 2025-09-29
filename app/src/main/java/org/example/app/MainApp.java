@@ -6,11 +6,11 @@ import javafx.scene.control.Button;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import org.example.core.FastSort;
+import org.example.core.QuickSortStep;
 import org.example.core.SelectionSort;
+import org.example.ui.FastSortUI;
 import org.example.ui.SelectionSortUI;
-import org.example.core.InsertSort;
-import org.example.ui.InsertsortUI;
-
 
 import java.util.Optional;
 
@@ -18,52 +18,60 @@ public class MainApp extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+        Button selSortBtn = new Button("选择排序");
+        Button fastSortBtn = new Button("快速排序");
 
-        Button sortButton = new Button("排序算法可视化");
-
-        sortButton.setOnAction(e -> {
-            // 弹出输入对话框
-            TextInputDialog dialog = new TextInputDialog("5,2,9,1,6");
-            dialog.setTitle("输入数组");
-            dialog.setHeaderText("请输入整数数组，用逗号分隔，例如：5,2,9,1,6");
-            dialog.setContentText("数组：");
-
-            Optional<String> result = dialog.showAndWait();
-            int[] data;
-            if (result.isPresent()) {
-                String input = result.get();
-                String[] parts = input.split(",");
-                data = new int[parts.length];
-                for (int i = 0; i < parts.length; i++) {
-                    data[i] = Integer.parseInt(parts[i].trim());
-                }
-            } else {
-                data = new int[]{5,2,9,1,6}; // 默认数组
-            }
-
-            // 调用 core 模块算法
+        selSortBtn.setOnAction(e -> {
+            int[] data = getInputArray();
             SelectionSort sorter = new SelectionSort();
             int[][] steps = sorter.sort(data);
 
-            // 调用 ui 模块显示
             SelectionSortUI ui = new SelectionSortUI(data);
-            Stage sortStage = new Stage();
-            sortStage.setTitle("选择排序可视化");
-            sortStage.setScene(new Scene(ui.getRoot(), 600, 400));
-            sortStage.show();
+            Stage stage = new Stage();
+            stage.setTitle("选择排序可视化");
+            stage.setScene(new Scene(ui.getRoot(), 800, 400));
+            stage.show();
 
-            ui.visualizeSteps(steps, 1000); // 每步 1 秒
+            ui.visualizeSteps(steps, 600); // 每步 600ms
         });
 
-        VBox root = new VBox(10, sortButton);
-        primaryStage.setTitle("数据结构可视化入口");
-        primaryStage.setScene(new Scene(root, 300, 100));
+        fastSortBtn.setOnAction(e -> {
+            int[] data = getInputArray();
+            FastSort sorter = new FastSort();
+            QuickSortStep[] steps = sorter.sort(data);
+
+            FastSortUI ui = new FastSortUI(data);
+            Stage stage = new Stage();
+            stage.setTitle("快速排序可视化");
+            stage.setScene(new Scene(ui.getRoot(), 900, 400));
+            stage.show();
+
+            ui.visualizeSteps(steps, 600); // 每步 600ms
+        });
+
+        VBox root = new VBox(10, selSortBtn, fastSortBtn);
+        primaryStage.setScene(new Scene(root, 300, 120));
+        primaryStage.setTitle("数据结构可视化");
         primaryStage.show();
+    }
+
+    private int[] getInputArray() {
+        TextInputDialog dialog = new TextInputDialog("10,3,7,1,9,5,2,8,4,6");
+        dialog.setTitle("输入数组");
+        dialog.setHeaderText("请输入整数数组，用逗号分隔");
+        dialog.setContentText("数组：");
+
+        Optional<String> result = dialog.showAndWait();
+        if (result.isPresent()) {
+            String[] parts = result.get().split(",");
+            int[] data = new int[parts.length];
+            for (int i = 0; i < parts.length; i++) data[i] = Integer.parseInt(parts[i].trim());
+            return data;
+        }
+        return new int[]{10,3,7,1,9,5,2,8,4,6};
     }
 
     public static void main(String[] args) {
         launch(args);
-
-
     }
 }

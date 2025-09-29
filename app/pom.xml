@@ -1,11 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
-
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <!-- 父项目 POM -->
     <parent>
         <groupId>org.example</groupId>
         <artifactId>hk</artifactId>
@@ -13,12 +12,8 @@
     </parent>
 
     <artifactId>app</artifactId>
+    <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-
-    <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-    </properties>
 
     <dependencies>
         <!-- 依赖 core 模块 -->
@@ -35,7 +30,7 @@
             <version>1.0-SNAPSHOT</version>
         </dependency>
 
-        <!-- JavaFX Controls -->
+        <!-- JavaFX -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
@@ -45,7 +40,7 @@
 
     <build>
         <plugins>
-            <!-- JavaFX Maven 插件，用于运行 MainApp -->
+            <!-- JavaFX Maven 插件 -->
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
