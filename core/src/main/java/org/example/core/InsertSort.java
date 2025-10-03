@@ -1,27 +1,27 @@
 package org.example.core;
 
 public class InsertSort {
-    public int[][] sort(int[] arr)
-    {
+    public int[][] sort(int[] arr) {
         int n = arr.length;
-        int[][] steps = new int[n][n];
-        int stepCount = 0 ;
+        int[][] steps = new int[n * n][n]; // 最多 n*n 步
+        int stepCount = 0;
         int[] copy = arr.clone();
 
-        //排序算法实现
-        for(int i = 1; i < n ; i++)
-        {
-         int tempecord = copy[i];
-         int j = i - 1;
-         while( j >= 0 && tempecord  < copy[j])
-         {
-                copy[j+1] = copy[j];
-                j = j - 1;
-         }
-            copy[j+1] = tempecord ;
-            steps[stepCount] = copy.clone();
-            stepCount++;
+        for (int i = 1; i < n; i++) {
+            int key = copy[i];
+            int j = i - 1;
+
+            while (j >= 0 && copy[j] > key) {
+                copy[j + 1] = copy[j];
+                j--;
+            }
+            copy[j + 1] = key;
+
+            steps[stepCount++] = copy.clone(); // 保存当前步骤
         }
-       return steps;
+
+        int[][] result = new int[stepCount][n];
+        for (int i = 0; i < stepCount; i++) result[i] = steps[i];
+        return result;
     }
 }

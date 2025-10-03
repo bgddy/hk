@@ -3,7 +3,7 @@ package org.example.core;
 public class SelectionSort {
     public int[][] sort(int[] arr) {
         int n = arr.length;
-        int[][] steps = new int[n * n][n]; // 最多 n*n 步
+        int[][] steps = new int[n][n];
         int stepCount = 0;
 
         int[] copy = arr.clone();

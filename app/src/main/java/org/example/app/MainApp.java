@@ -7,9 +7,11 @@ import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import org.example.core.FastSort;
+import org.example.core.InsertSort;
 import org.example.core.QuickSortStep;
 import org.example.core.SelectionSort;
 import org.example.ui.FastSortUI;
+import org.example.ui.InsertSortUI;
 import org.example.ui.SelectionSortUI;
 
 import java.util.Optional;
@@ -19,8 +21,10 @@ public class MainApp extends Application {
     @Override
     public void start(Stage primaryStage) {
         Button selSortBtn = new Button("选择排序");
+        Button insSortBtn = new Button("插入排序");
         Button fastSortBtn = new Button("快速排序");
 
+        // 选择排序
         selSortBtn.setOnAction(e -> {
             int[] data = getInputArray();
             SelectionSort sorter = new SelectionSort();
@@ -32,9 +36,25 @@ public class MainApp extends Application {
             stage.setScene(new Scene(ui.getRoot(), 800, 400));
             stage.show();
 
-            ui.visualizeSteps(steps, 600); // 每步 600ms
+            ui.visualizeSteps(steps, 600);
         });
 
+        // 插入排序
+        insSortBtn.setOnAction(e -> {
+            int[] data = getInputArray();
+            InsertSort sorter = new InsertSort();
+            int[][] steps = sorter.sort(data);
+
+            InsertSortUI ui = new InsertSortUI(data);
+            Stage stage = new Stage();
+            stage.setTitle("插入排序可视化");
+            stage.setScene(new Scene(ui.getRoot(), 800, 400));
+            stage.show();
+
+            ui.visualizeSteps(steps, 600);
+        });
+
+        // 快速排序
         fastSortBtn.setOnAction(e -> {
             int[] data = getInputArray();
             FastSort sorter = new FastSort();
@@ -46,11 +66,11 @@ public class MainApp extends Application {
             stage.setScene(new Scene(ui.getRoot(), 900, 400));
             stage.show();
 
-            ui.visualizeSteps(steps, 600); // 每步 600ms
+            ui.visualizeSteps(steps, 600);
         });
 
-        VBox root = new VBox(10, selSortBtn, fastSortBtn);
-        primaryStage.setScene(new Scene(root, 300, 120));
+        VBox root = new VBox(10, selSortBtn, insSortBtn, fastSortBtn);
+        primaryStage.setScene(new Scene(root, 1500, 750));
         primaryStage.setTitle("数据结构可视化");
         primaryStage.show();
     }

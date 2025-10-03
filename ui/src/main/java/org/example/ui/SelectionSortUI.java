@@ -99,7 +99,7 @@ public class SelectionSortUI {
 
             timeline.play();
         } else {
-            // 如果当前轮最小值就是当前位置，也更新高度
+            // 如果当前轮最小值就是当前œ位置，也更新高度
             for (int k = 0; k < array.length; k++) {
                 bars[k].setHeight(array[k] * 5);
             }
