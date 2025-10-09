@@ -1,5 +1,4 @@
 package org.example.core;
-
 public class AdjListGraph extends Graph{
     private LinkedList[] mGraphList;
 
@@ -14,37 +13,56 @@ public class AdjListGraph extends Graph{
 
     @Override
     public Edge firstEdge(int onevertex) {
-        Edge edge = new Edge();
-        edge.setMfrom(onevertex);
-        Link temp = this.mGraphList[onevertex].getHead();
-        if(temp.getNext() !=  null)
-        {
-            edge.setMto(temp.getNext().getElement().getVertex());
-            edge.setMweight(temp.getNext().getElement().getWeight());
+        Link temp = mGraphList[onevertex].getHead();
+        if (temp.getNext() != null) {
+            Edge edge = new Edge(onevertex,
+                    temp.getNext().getElement().getVertex(),
+                    temp.getNext().getElement().getWeight());
+            return edge;
         }
-        return edge;
+        return null; // 没有边
     }
 
     @Override
     public Edge nextEdge(Edge pre) {
-        Edge edge = new Edge();
-        edge.setMfrom(pre.getMfrom());
+        if (pre == null) return null;
+
         Link temp = mGraphList[pre.getMfrom()].getHead();
-        while(temp.getNext() != null && temp.getNext().getElement().getVertex() <= pre.getMto())
-        {
+        // 找到上一次 Edge 对应的节点
+        while (temp.getNext() != null && temp.getNext().getElement().getVertex() <= pre.getMto()) {
             temp = temp.getNext();
         }
-        if(temp.getNext() != null)
-        {
-            edge.setMto(temp.getNext().getElement().getVertex());
-            edge.setMweight(temp.getNext().getElement().getWeight());
-        }
 
-        return edge;
+        if (temp.getNext() != null) {
+            Edge edge = new Edge(pre.getMfrom(),
+                    temp.getNext().getElement().getVertex(),
+                    temp.getNext().getElement().getWeight());
+            return edge;
+        } else {
+            return null; // 到链表末尾
+        }
     }
 
     @Override
     public void setEdge(int from, int to, int weight) {
+        addSingleEdge(from,to,weight);
+        if(from != to)
+        {
+            addSingleEdge(to,from,weight);
+        }
+    }
+
+    @Override
+    public void delEdge(int from, int to) {
+        delSingleEdge(from,to);
+        if(from != to)
+        {
+            delSingleEdge(to,from);
+        }
+    }
+
+
+    public void addSingleEdge(int from, int to, int weight) {
         Link temp = mGraphList[from].getHead();
         while(temp.getNext() != null && temp.getNext().getElement().getVertex() <to)
         {
@@ -77,8 +95,8 @@ public class AdjListGraph extends Graph{
         }
     }
 
-    @Override
-    public void delEdge(int from, int to) {
+
+    public void delSingleEdge(int from, int to) {
         Link temp = mGraphList[from].getHead();
         while(temp.getNext() != null && temp.getNext().getElement().getVertex() < to)
         {
@@ -104,13 +122,14 @@ public class AdjListGraph extends Graph{
 
     @Override
     public boolean isEdge(Edge edge) {
+        if (edge == null) return false; // 空对象直接 false
+
         int from = edge.getMfrom();
         int to = edge.getMto();
         Link temp = mGraphList[from].getHead();
+
         while (temp.getNext() != null) {
-            if (temp.getNext().getElement().getVertex() == to) {
-                return true;
-            }
+            if (temp.getNext().getElement().getVertex() == to) return true;
             temp = temp.getNext();
         }
         return false;
@@ -129,5 +148,36 @@ public class AdjListGraph extends Graph{
     @Override
     public int weight(Edge edge) {
         return edge.getMweight();
+    }
+
+    public int edgeNumbers(){
+        return super.edgesNumber() / 2;
+    }
+
+    public Edge[] getAllEdge(){
+        int n = vecticesNumber();
+        int totalEdges = edgeNumbers();
+        Edge[] allEdges = new Edge[totalEdges];
+        int index = 0;
+
+        for(int i = 0;i < n;i++)
+        {
+            for(Edge e = firstEdge(i);isEdge(e);e = nextEdge(e))
+            {
+                int from = fromVertex(e);
+                int to = toVertex(e);
+                if(from < to){
+                    allEdges[index++] = e;
+                }
+            }
+        }
+
+        if(index < totalEdges)
+        {
+            Edge[] trimmed = new Edge[index];
+            System.arraycopy(allEdges,0,trimmed,0,index);
+            return trimmed;
+        }
+        return  allEdges;
     }
 }

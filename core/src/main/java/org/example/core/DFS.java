@@ -28,7 +28,7 @@ public class DFS {
     public void deepFirstSearch(int v)
     {
         visited[v] = true;
-        for(Edge e = graph.firstEdge(v); graph.isEdge(e); e = graph.nextEdge(e))
+        for(Edge e = graph.firstEdge(v);  e != null; e = graph.nextEdge(e))
         {
             if(visited[graph.toVertex(e)] == false)
             {

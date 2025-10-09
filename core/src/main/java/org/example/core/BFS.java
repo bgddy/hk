@@ -36,7 +36,7 @@ public class BFS {
          {
              int u = queue.poll();
              visit(u);
-             for(Edge e = graph.firstEdge(u); graph.isEdge(e); e = graph.nextEdge(e))
+             for(Edge e = graph.firstEdge(u);e != null; e = graph.nextEdge(e))
              {
                  if(visited[graph.toVertex(e)] == false)
                  {

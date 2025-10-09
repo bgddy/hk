@@ -14,6 +14,9 @@ public class SelectionSortUI {
 
     private HBox root;
     private Rectangle[] bars;
+    private static final double BAR_WIDTH = 40;
+    private static final double SCALE = 10;  // 控制高度比例
+    private static final double BASELINE = 300; // 底部基线高度
 
     public SelectionSortUI(int[] data) {
         root = new HBox(5);
@@ -24,7 +27,9 @@ public class SelectionSortUI {
         root.getChildren().clear();
         bars = new Rectangle[data.length];
         for (int i = 0; i < data.length; i++) {
-            Rectangle rect = new Rectangle(20, data[i] * 5, Color.BLUE);
+            double height = data[i] * SCALE;
+            Rectangle rect = new Rectangle(BAR_WIDTH, height, Color.LIGHTBLUE);
+            rect.setTranslateY(BASELINE - height); // 从底部对齐
             bars[i] = rect;
             root.getChildren().add(rect);
         }
@@ -41,10 +46,8 @@ public class SelectionSortUI {
                     final int[] step = steps[stepIndex];
                     final int currentIndex = stepIndex;
 
-                    // 高亮当前轮起始位置和最小值
                     int minIndex = findMinIndex(step, currentIndex);
                     Platform.runLater(() -> animateStep(currentIndex, minIndex, step));
-
                     Thread.sleep(delayMs);
                 }
             } catch (InterruptedException e) {
@@ -62,18 +65,15 @@ public class SelectionSortUI {
     }
 
     private void animateStep(int i, int minIdx, int[] array) {
-        // 默认全部蓝色
-        for (Rectangle bar : bars) bar.setFill(Color.BLUE);
+        for (Rectangle bar : bars) bar.setFill(Color.LIGHTBLUE);
 
-        // 高亮当前轮和最小值
         bars[i].setFill(Color.GREEN);
         bars[minIdx].setFill(Color.RED);
 
         if (i != minIdx) {
             Rectangle r1 = bars[i];
             Rectangle r2 = bars[minIdx];
-
-            double distance = r2.getLayoutX() - r1.getLayoutX();
+            double distance = (minIdx - i) * (BAR_WIDTH + 5);
 
             Timeline timeline = new Timeline(
                     new KeyFrame(Duration.millis(800),
@@ -83,25 +83,22 @@ public class SelectionSortUI {
             );
 
             timeline.setOnFinished(e -> {
-                // 交换 bars 数组顺序
                 bars[i] = r2;
                 bars[minIdx] = r1;
-
-                // 重置平移
                 r1.setTranslateX(0);
                 r2.setTranslateX(0);
-
-                // 更新条形高度到数组当前值
                 for (int k = 0; k < array.length; k++) {
-                    bars[k].setHeight(array[k] * 5);
+                    double height = array[k] * SCALE;
+                    bars[k].setHeight(height);
+                    bars[k].setTranslateY(BASELINE - height);
                 }
             });
-
             timeline.play();
         } else {
-            // 如果当前轮最小值就是当前œ位置，也更新高度
             for (int k = 0; k < array.length; k++) {
-                bars[k].setHeight(array[k] * 5);
+                double height = array[k] * SCALE;
+                bars[k].setHeight(height);
+                bars[k].setTranslateY(BASELINE - height);
             }
         }
     }

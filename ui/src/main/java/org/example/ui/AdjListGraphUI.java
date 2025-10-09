@@ -1,137 +1,195 @@
 package org.example.ui;
 
 import javafx.application.Platform;
-import javafx.scene.control.Label;
-import javafx.scene.layout.Pane;
+import javafx.scene.Group;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
-import javafx.scene.shape.Polygon;
-import javafx.scene.shape.Arc;
-import javafx.scene.shape.ArcType;
+import javafx.scene.text.Text;
 import org.example.core.AdjListGraph;
 import org.example.core.Edge;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 public class AdjListGraphUI {
-    private Pane root;
-    private AdjListGraph graph;
 
-    private Map<Integer, Circle> vertexNodes = new HashMap<>();
-    private Map<Integer, Label> vertexLabels = new HashMap<>();
+    private AdjListGraph graph;
+    private Group root;
+
+    private List<Circle> vertexNodes = new ArrayList<>();
+    private List<Line> edgeLines = new ArrayList<>();
+    private List<Text> edgeWeights = new ArrayList<>();
+
+    private Thread currentAlgorithmThread;
 
     public AdjListGraphUI(AdjListGraph graph) {
         this.graph = graph;
-        root = new Pane();
-        root.setPrefSize(700, 700);
+        this.root = new Group();
+        drawVertices();
     }
 
-    public Pane getRoot() {
+    public Group getRoot() {
         return root;
     }
 
-    // 布局顶点（圆形）
-    public void layoutVertices() {
-        root.getChildren().removeIf(node -> node instanceof Circle || node instanceof Label);
-
+   public void drawVertices() {
         int n = graph.vecticesNumber();
-        double centerX = 350;
-        double centerY = 350;
-        double radius = 250;
-
         vertexNodes.clear();
-        vertexLabels.clear();
+        root.getChildren().clear();
+
+        double width = 800;
+        double height = 400;
+        double nodeRadius = 20;
+        double minSpacing = 10;
+
+        // 画布中心向上移动
+        double centerX = width / 2;
+        double centerY = height / 2 - 50; // 往上提 50px
+
+        // 根据顶点数动态计算半径，保证间距更大
+        double maxRadius = Math.min(width, height) / 2 - nodeRadius - 10;
+        double radius = n > 1 ? Math.min(maxRadius, n * (nodeRadius * 6 + minSpacing) / (2 * Math.PI)) : 0;
+        // nodeRadius*3 让间距更大
 
         for (int i = 0; i < n; i++) {
             double angle = 2 * Math.PI * i / n;
             double x = centerX + radius * Math.cos(angle);
             double y = centerY + radius * Math.sin(angle);
-
-            Circle circle = new Circle(x, y, 20, Color.LIGHTBLUE);
-            Label label = new Label(String.valueOf(i));
-            label.setLayoutX(x - 6);
-            label.setLayoutY(y - 10);
-
-            vertexNodes.put(i, circle);
-            vertexLabels.put(i, label);
-
+            Circle circle = new Circle(x, y, nodeRadius, Color.LIGHTBLUE);
+            Text label = new Text(x - 5, y + 5, String.valueOf(i));
+            vertexNodes.add(circle);
             root.getChildren().addAll(circle, label);
         }
-    }
 
-    // 绘制边 + 权重 + 自环
+        drawEdges();
+    }
     public void drawEdges() {
-        root.getChildren().removeIf(node -> node instanceof Line || node instanceof Polygon || node instanceof Label || node instanceof Arc);
+        root.getChildren().removeAll(edgeLines);
+        root.getChildren().removeAll(edgeWeights);
+        edgeLines.clear();
+        edgeWeights.clear();
 
         int n = graph.vecticesNumber();
-        for (int from = 0; from < n; from++) {
-            Edge edge = graph.firstEdge(from);
-            while (edge.getMto() != 0) {
-                int to = edge.getMto();
-                Circle start = vertexNodes.get(edge.getMfrom());
-                Circle end = vertexNodes.get(edge.getMto());
-                if (start != null && end != null) {
-                    if (from == to) { // 自环
-                        Arc arc = new Arc(start.getCenterX(), start.getCenterY() - 25, 20, 20, 0, 270);
-                        arc.setType(ArcType.OPEN);
-                        arc.setStroke(Color.GRAY);
-                        arc.setFill(Color.TRANSPARENT);
-                        arc.setStrokeWidth(2);
-                        root.getChildren().add(arc);
+        for (int i = 0; i < n; i++) {
+            for (Edge e = graph.firstEdge(i); e != null; e = graph.nextEdge(e)) {
+                int from = e.getMfrom();
+                int to = e.getMto();
+                if (from < to) {
+                    Circle c1 = vertexNodes.get(from);
+                    Circle c2 = vertexNodes.get(to);
+                    Line line = new Line(c1.getCenterX(), c1.getCenterY(), c2.getCenterX(), c2.getCenterY());
+                    line.setStrokeWidth(2);
+                    line.setStroke(Color.GRAY);
 
-                        Label weightLabel = new Label(String.valueOf(edge.getMweight()));
-                        weightLabel.setLayoutX(start.getCenterX() + 20);
-                        weightLabel.setLayoutY(start.getCenterY() - 50);
-                        root.getChildren().add(weightLabel);
+                    Text weightText = new Text((c1.getCenterX() + c2.getCenterX()) / 2,
+                            (c1.getCenterY() + c2.getCenterY()) / 2, String.valueOf(e.getMweight()));
 
-                    } else { // 普通边
-                        Line line = new Line(start.getCenterX(), start.getCenterY(),
-                                end.getCenterX(), end.getCenterY());
-                        line.setStroke(Color.GRAY);
-                        line.setStrokeWidth(2);
-                        root.getChildren().add(0, line);
-
-                        // 箭头
-                        double ex = end.getCenterX();
-                        double ey = end.getCenterY();
-                        double sx = start.getCenterX();
-                        double sy = start.getCenterY();
-                        double dx = ex - sx;
-                        double dy = ey - sy;
-                        double len = Math.sqrt(dx*dx + dy*dy);
-                        double arrowSize = 10;
-                        double ux = dx / len;
-                        double uy = dy / len;
-                        double px = ex - ux * 20;
-                        double py = ey - uy * 20;
-                        Polygon arrow = new Polygon();
-                        arrow.getPoints().addAll(
-                                px, py,
-                                px - uy * arrowSize - ux * arrowSize, py + ux * arrowSize - uy * arrowSize,
-                                px + uy * arrowSize - ux * arrowSize, py - ux * arrowSize - uy * arrowSize
-                        );
-                        arrow.setFill(Color.GRAY);
-                        root.getChildren().add(arrow);
-
-                        // 边权重
-                        Label weightLabel = new Label(String.valueOf(edge.getMweight()));
-                        weightLabel.setLayoutX((sx+ex)/2);
-                        weightLabel.setLayoutY((sy+ey)/2 - 10);
-                        root.getChildren().add(weightLabel);
-                    }
+                    edgeLines.add(line);
+                    edgeWeights.add(weightText);
+                    root.getChildren().addAll(line, weightText);
                 }
-
-                edge = graph.nextEdge(edge);
             }
         }
     }
 
-    public void refresh() {
+    public void insertEdge(int from, int to, int weight) {
+        graph.setEdge(from, to, weight);
+        drawVertices();
+    }
+
+    public void deleteEdge(int from, int to) {
+        graph.delEdge(from, to);
+        drawVertices();
+    }
+
+    public void resetHighlights() {
         Platform.runLater(() -> {
-            layoutVertices();
-            drawEdges();
+            for (Circle c : vertexNodes) c.setFill(Color.LIGHTBLUE);
+            for (Line l : edgeLines) l.setStroke(Color.GRAY);
+        });
+    }
+
+    public void visualizeDFS(int start) {
+        if (currentAlgorithmThread != null && currentAlgorithmThread.isAlive())
+            currentAlgorithmThread.interrupt();
+        resetHighlights();
+        currentAlgorithmThread = new Thread(() -> dfsHelper(start, new boolean[graph.vecticesNumber()]));
+        currentAlgorithmThread.start();
+    }
+
+    private void dfsHelper(int v, boolean[] visited) {
+        if (Thread.currentThread().isInterrupted()) return;
+        visited[v] = true;
+        highlightVertex(v, Color.GREEN);
+        try { Thread.sleep(500); } catch (InterruptedException e) { return; }
+        for (Edge e = graph.firstEdge(v); e != null; e = graph.nextEdge(e)) {
+            int to = e.getMto();
+            if (!visited[to]) dfsHelper(to, visited);
+        }
+    }
+
+    public void visualizeBFS(int start) {
+        if (currentAlgorithmThread != null && currentAlgorithmThread.isAlive())
+            currentAlgorithmThread.interrupt();
+        resetHighlights();
+        currentAlgorithmThread = new Thread(() -> {
+            boolean[] visited = new boolean[graph.vecticesNumber()];
+            java.util.List<Integer> queue = new java.util.ArrayList<>();
+            queue.add(start);
+            visited[start] = true;
+            highlightVertex(start, Color.GREEN);
+            while (!queue.isEmpty()) {
+                if (Thread.currentThread().isInterrupted()) return;
+                int v = queue.remove(0);
+                for (Edge e = graph.firstEdge(v); e != null; e = graph.nextEdge(e)) {
+                    int to = e.getMto();
+                    if (!visited[to]) {
+                        visited[to] = true;
+                        highlightVertex(to, Color.GREEN);
+                        try { Thread.sleep(500); } catch (InterruptedException ex) { return; }
+                        queue.add(to);
+                    }
+                }
+            }
+        });
+        currentAlgorithmThread.start();
+    }
+
+    public void visualizeKruskal(Edge[] mstEdges) {
+        if (currentAlgorithmThread != null && currentAlgorithmThread.isAlive())
+            currentAlgorithmThread.interrupt();
+        resetHighlights();
+        currentAlgorithmThread = new Thread(() -> {
+            for (Edge e : mstEdges) {
+                if (Thread.currentThread().isInterrupted()) return;
+                highlightEdge(e.getMfrom(), e.getMto(), Color.RED);
+                try { Thread.sleep(500); } catch (InterruptedException ex) { return; }
+            }
+        });
+        currentAlgorithmThread.start();
+    }
+
+    private void highlightVertex(int v, Color color) {
+        Platform.runLater(() -> vertexNodes.get(v).setFill(color));
+    }
+
+    private void highlightEdge(int from, int to, Color color) {
+        Platform.runLater(() -> {
+            for (Line line : edgeLines) {
+                Circle c1 = vertexNodes.get(from);
+                Circle c2 = vertexNodes.get(to);
+                if ((line.getStartX() == c1.getCenterX() && line.getStartY() == c1.getCenterY() &&
+                        line.getEndX() == c2.getCenterX() && line.getEndY() == c2.getCenterY()) ||
+                        (line.getStartX() == c2.getCenterX() && line.getStartY() == c2.getCenterY() &&
+                                line.getEndX() == c1.getCenterX() && line.getEndY() == c1.getCenterY())) {
+                    line.setStroke(color);
+                    break;
+                }
+            }
         });
     }
 }
+
+// MatrixGraphUI 类同理，drawVertices 中也用动态半径布局，drawEdges 刷新所有边
+// 只需将之前的固定半径改为根据 pane 宽高和节点数计算半径，然后调用 drawEdges() 刷新边位置
