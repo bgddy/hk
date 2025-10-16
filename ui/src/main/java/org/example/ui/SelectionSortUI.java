@@ -14,12 +14,12 @@ public class SelectionSortUI {
 
     private HBox root;
     private Rectangle[] bars;
-    private static final double BAR_WIDTH = 40;
-    private static final double SCALE = 10;  // 控制高度比例
-    private static final double BASELINE = 300; // 底部基线高度
+    private static final double BAR_WIDTH = 90;
+    private static final double SCALE = 50;
+    private static final double BASELINE = 600; // 底部基线高度
 
     public SelectionSortUI(int[] data) {
-        root = new HBox(5);
+        root = new HBox(20);
         initBars(data);
     }
 
@@ -28,8 +28,8 @@ public class SelectionSortUI {
         bars = new Rectangle[data.length];
         for (int i = 0; i < data.length; i++) {
             double height = data[i] * SCALE;
-            Rectangle rect = new Rectangle(BAR_WIDTH, height, Color.LIGHTBLUE);
-            rect.setTranslateY(BASELINE - height); // 从底部对齐
+            Rectangle rect = new Rectangle(BAR_WIDTH, height, Color.LIGHTGREEN);
+            rect.setTranslateY(BASELINE - height);
             bars[i] = rect;
             root.getChildren().add(rect);
         }
@@ -65,9 +65,9 @@ public class SelectionSortUI {
     }
 
     private void animateStep(int i, int minIdx, int[] array) {
-        for (Rectangle bar : bars) bar.setFill(Color.LIGHTBLUE);
+        for (Rectangle bar : bars) bar.setFill(Color.LIGHTGREEN);
 
-        bars[i].setFill(Color.GREEN);
+        bars[i].setFill(Color.PURPLE);
         bars[minIdx].setFill(Color.RED);
 
         if (i != minIdx) {
@@ -76,7 +76,7 @@ public class SelectionSortUI {
             double distance = (minIdx - i) * (BAR_WIDTH + 5);
 
             Timeline timeline = new Timeline(
-                    new KeyFrame(Duration.millis(800),
+                    new KeyFrame(Duration.seconds(10),
                             new KeyValue(r1.translateXProperty(), distance),
                             new KeyValue(r2.translateXProperty(), -distance)
                     )

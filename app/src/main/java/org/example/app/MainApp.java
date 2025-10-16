@@ -11,9 +11,9 @@ import org.example.ui.*;
 
 public class MainApp extends Application {
 
-    private VBox leftTopPane;  // 算法选择
-    private VBox rightTopPane; // 数据输入
-    private Pane bottomPane;   // 可视化画布
+    private VBox leftTopPane;
+    private VBox rightTopPane;
+    private Pane bottomPane;
 
     private AdjListGraph adjGraph;
     private AdjListGraphUI adjGraphUI;
@@ -111,16 +111,16 @@ public class MainApp extends Application {
                     if (type.equals("Selection Sort")) {
                         selectionSortUI = new SelectionSortUI(arr);
                         bottomPane.getChildren().add(selectionSortUI.getRoot());
-                        selectionSortUI.visualizeSteps(new SelectionSort().sort(arr), 800);
+                        selectionSortUI.visualizeSteps(new SelectionSort().sort(arr), 1000);
                     } else if (type.equals("Insertion Sort")) {
                         insertSortUI = new InsertSortUI(arr);
                         bottomPane.getChildren().add(insertSortUI.getRoot());
-                        insertSortUI.visualizeSteps(new InsertSort().sort(arr), 800);
+                        insertSortUI.visualizeSteps(new InsertSort().sort(arr), 1000);
                     } else {
                         fastSortUI = new FastSortUI(arr);
                         bottomPane.getChildren().add(fastSortUI.getRoot());
                         QuickSortStep[] stepsQuick = new FastSort().sort(arr);
-                        fastSortUI.visualizeSteps(stepsQuick, 800);
+                        fastSortUI.visualizeSteps(stepsQuick, 1000);
                     }
                 });
                 break;

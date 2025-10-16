@@ -13,9 +13,9 @@ import org.example.core.QuickSortStep;
 public class FastSortUI {
     private HBox root;
     private Rectangle[] bars;
-    private static final double BAR_WIDTH = 40;
-    private static final double SCALE = 10;
-    private static final double BASELINE = 300;
+    private static final double BAR_WIDTH = 90;
+    private static final double SCALE = 50;
+    private static final double BASELINE = 600;
 
     public FastSortUI(int[] initialData) {
         root = new HBox(4);
