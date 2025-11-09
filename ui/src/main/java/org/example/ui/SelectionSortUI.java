@@ -10,17 +10,21 @@ import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
 import org.example.core.SelectionSort;
 
-public class SelectionSortUI {
+public class SelectionSortUI extends ControllableSortUI {
 
-    private HBox root;
-    private Rectangle[] bars;
-    private static final double BAR_WIDTH = 90;
-    private static final double SCALE = 50;
-    private static final double BASELINE = 600; // 底部基线高度
+    private int[] originalData;
+    private int[][] steps;
+    private Timeline currentAnimation;
+    private long stepDelay = 500;
 
     public SelectionSortUI(int[] data) {
-        root = new HBox(20);
+        this.originalData = data.clone();
+        this.root = new HBox(SPACING);
         initBars(data);
+        
+        // 生成排序步骤
+        SelectionSort sorter = new SelectionSort();
+        this.steps = sorter.sort(data);
     }
 
     private void initBars(int[] data) {
@@ -39,21 +43,58 @@ public class SelectionSortUI {
         return root;
     }
 
-    public void visualizeSteps(int[][] steps, long delayMs) {
+    @Override
+    public void visualizeSteps(long stepDelay) {
+        this.stepDelay = stepDelay;
+        isPlaying = true;
+        currentStep = 0;
+        
         new Thread(() -> {
             try {
-                for (int stepIndex = 0; stepIndex < steps.length; stepIndex++) {
+                while (currentStep < steps.length && isPlaying) {
+                    final int stepIndex = currentStep;
                     final int[] step = steps[stepIndex];
-                    final int currentIndex = stepIndex;
-
-                    int minIndex = findMinIndex(step, currentIndex);
-                    Platform.runLater(() -> animateStep(currentIndex, minIndex, step));
-                    Thread.sleep(delayMs);
+                    int minIndex = findMinIndex(step, stepIndex);
+                    
+                    Platform.runLater(() -> animateStep(stepIndex, minIndex, step));
+                    Thread.sleep(stepDelay);
+                    
+                    currentStep++;
                 }
+                isPlaying = false;
             } catch (InterruptedException e) {
                 e.printStackTrace();
+                isPlaying = false;
             }
         }).start();
+    }
+
+    @Override
+    public void nextStep() {
+        if (currentStep < steps.length) {
+            int[] step = steps[currentStep];
+            int minIndex = findMinIndex(step, currentStep);
+            animateStep(currentStep, minIndex, step);
+            currentStep++;
+        }
+    }
+
+    @Override
+    public void reset() {
+        // 停止当前动画
+        if (currentAnimation != null) {
+            currentAnimation.stop();
+        }
+        isPlaying = false;
+        currentStep = 0;
+        
+        // 重置到初始状态
+        initBars(originalData);
+    }
+
+    @Override
+    public int getTotalSteps() {
+        return steps.length;
     }
 
     private int findMinIndex(int[] array, int start) {
@@ -73,7 +114,7 @@ public class SelectionSortUI {
         if (i != minIdx) {
             Rectangle r1 = bars[i];
             Rectangle r2 = bars[minIdx];
-            double distance = (minIdx - i) * (BAR_WIDTH + 5);
+            double distance = (minIdx - i) * (BAR_WIDTH + SPACING);
 
             Timeline timeline = new Timeline(
                     new KeyFrame(Duration.seconds(10),

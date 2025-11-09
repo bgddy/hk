@@ -9,17 +9,20 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
 import org.example.core.QuickSortStep;
+import org.example.core.FastSort;
 
-public class FastSortUI {
-    private HBox root;
-    private Rectangle[] bars;
-    private static final double BAR_WIDTH = 90;
-    private static final double SCALE = 50;
-    private static final double BASELINE = 600;
+public class FastSortUI extends ControllableSortUI {
+
+    private int[] originalData;
+    private QuickSortStep[] steps;
+    private SequentialTransition animation;
+    private long stepDelay = 500;
 
     public FastSortUI(int[] initialData) {
-        root = new HBox(4);
-        bars = new Rectangle[initialData.length];
+        this.originalData = initialData.clone();
+        this.root = new HBox(SPACING);
+        this.bars = new Rectangle[initialData.length];
+        
         for (int i = 0; i < initialData.length; i++) {
             double height = initialData[i] * SCALE;
             Rectangle rect = new Rectangle(BAR_WIDTH, height, Color.LIGHTBLUE);
@@ -27,19 +30,72 @@ public class FastSortUI {
             bars[i] = rect;
             root.getChildren().add(rect);
         }
+        
+        // 生成排序步骤
+        FastSort sorter = new FastSort();
+        this.steps = sorter.sort(initialData);
     }
 
     public HBox getRoot() {
         return root;
     }
 
-    public void visualizeSteps(QuickSortStep[] steps, long stepDelay) {
-        SequentialTransition seq = new SequentialTransition();
-        for (QuickSortStep step : steps) {
-            Timeline t = new Timeline(new KeyFrame(Duration.millis(stepDelay), e -> updateBars(step)));
-            seq.getChildren().add(t);
+    @Override
+    public void visualizeSteps(long stepDelay) {
+        this.stepDelay = stepDelay;
+        isPlaying = true;
+        currentStep = 0;
+        
+        // 创建新的动画序列
+        animation = new SequentialTransition();
+        
+        for (int stepIndex = 0; stepIndex < steps.length; stepIndex++) {
+            final int stepIndexFinal = stepIndex;
+            Timeline t = new Timeline(new KeyFrame(Duration.millis(stepDelay), e -> {
+                updateBars(steps[stepIndexFinal]);
+                currentStep = stepIndexFinal + 1;
+            }));
+            animation.getChildren().add(t);
         }
-        seq.play();
+
+        animation.setOnFinished(e -> {
+            isPlaying = false;
+            currentStep = steps.length;
+        });
+        
+        animation.play();
+    }
+
+    @Override
+    public void nextStep() {
+        if (currentStep < steps.length) {
+            updateBars(steps[currentStep]);
+            currentStep++;
+        }
+    }
+
+    @Override
+    public void reset() {
+        // 停止当前动画
+        if (animation != null) {
+            animation.stop();
+        }
+        isPlaying = false;
+        currentStep = 0;
+        
+        // 重置到初始状态
+        for (int i = 0; i < originalData.length; i++) {
+            double height = originalData[i] * SCALE;
+            bars[i].setHeight(height);
+            bars[i].setTranslateY(BASELINE - height);
+            bars[i].setFill(Color.LIGHTBLUE);
+            bars[i].setTranslateX(0);
+        }
+    }
+
+    @Override
+    public int getTotalSteps() {
+        return steps.length;
     }
 
     private void updateBars(QuickSortStep step) {
@@ -61,7 +117,7 @@ public class FastSortUI {
             bars[i].setFill(Color.RED);
             bars[j].setFill(Color.RED);
 
-            double distance = (j - i) * (BAR_WIDTH + 4);
+            double distance = (j - i) * (BAR_WIDTH + SPACING);
             Timeline move = new Timeline(
                     new KeyFrame(Duration.millis(400),
                             new KeyValue(bars[i].translateXProperty(), distance),

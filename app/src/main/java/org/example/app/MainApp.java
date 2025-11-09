@@ -44,14 +44,32 @@ public class MainApp extends Application {
 
         topPane.getChildren().addAll(leftTopPane, rightTopPane);
 
-        // ==================== 下半部分：画布 ====================
+        // ==================== 下半部分：画布和控制面板 ====================
+        VBox bottomContainer = new VBox();
+        bottomContainer.setPrefHeight(600);
+        
         bottomPane = new Pane();
-        bottomPane.setPrefHeight(600);
+        bottomPane.setPrefHeight(550);
         bottomPane.setStyle("-fx-border-color: black; -fx-background-color: white;");
         VBox.setVgrow(bottomPane, Priority.ALWAYS);
+        
+        // 控制面板
+        HBox controlPanel = new HBox(10);
+        controlPanel.setPadding(new Insets(10));
+        controlPanel.setStyle("-fx-background-color: #f0f0f0; -fx-border-color: #ccc;");
+        controlPanel.setPrefHeight(50);
+        
+        Button autoPlayBtn = new Button("自动播放");
+        Button nextStepBtn = new Button("下一步");
+        Button resetBtn = new Button("重置");
+        Button pauseBtn = new Button("暂停");
+        
+        controlPanel.getChildren().addAll(autoPlayBtn, nextStepBtn, pauseBtn, resetBtn);
+        
+        bottomContainer.getChildren().addAll(bottomPane, controlPanel);
 
         root.setTop(topPane);
-        root.setCenter(bottomPane);
+        root.setCenter(bottomContainer);
 
         // ==================== 左上角：算法选择 ====================
         ComboBox<String> typeSelector = new ComboBox<>();
@@ -99,7 +117,20 @@ public class MainApp extends Application {
                 TextField arrayInput = new TextField();
                 arrayInput.setPromptText("输入数组，如: 8,3,5,1,6");
                 Button sortBtn = new Button("开始排序");
-                rightTopPane.getChildren().addAll(new Label("排序输入:"), arrayInput, sortBtn);
+                
+                // 控制按钮
+                HBox controlBox = new HBox(10);
+                Button autoPlayBtn = new Button("自动播放");
+                Button nextStepBtn = new Button("下一步");
+                Button pauseBtn = new Button("暂停");
+                Button resetBtn = new Button("重置");
+                controlBox.getChildren().addAll(autoPlayBtn, nextStepBtn, pauseBtn, resetBtn);
+                
+                rightTopPane.getChildren().addAll(
+                    new Label("排序输入:"), arrayInput, sortBtn,
+                    new Separator(),
+                    new Label("控制:"), controlBox
+                );
 
                 sortBtn.setOnAction(ev -> {
                     String[] parts = arrayInput.getText().split(",");
@@ -111,16 +142,53 @@ public class MainApp extends Application {
                     if (type.equals("Selection Sort")) {
                         selectionSortUI = new SelectionSortUI(arr);
                         bottomPane.getChildren().add(selectionSortUI.getRoot());
-                        selectionSortUI.visualizeSteps(new SelectionSort().sort(arr), 1000);
                     } else if (type.equals("Insertion Sort")) {
                         insertSortUI = new InsertSortUI(arr);
                         bottomPane.getChildren().add(insertSortUI.getRoot());
-                        insertSortUI.visualizeSteps(new InsertSort().sort(arr), 1000);
                     } else {
                         fastSortUI = new FastSortUI(arr);
                         bottomPane.getChildren().add(fastSortUI.getRoot());
-                        QuickSortStep[] stepsQuick = new FastSort().sort(arr);
-                        fastSortUI.visualizeSteps(stepsQuick, 1000);
+                    }
+                });
+
+                // 控制按钮事件
+                autoPlayBtn.setOnAction(ev -> {
+                    if (type.equals("Selection Sort") && selectionSortUI != null) {
+                        selectionSortUI.visualizeSteps(1000);
+                    } else if (type.equals("Insertion Sort") && insertSortUI != null) {
+                        insertSortUI.visualizeSteps(1000);
+                    } else if (type.equals("Quick Sort") && fastSortUI != null) {
+                        fastSortUI.visualizeSteps(1000);
+                    }
+                });
+
+                nextStepBtn.setOnAction(ev -> {
+                    if (type.equals("Selection Sort") && selectionSortUI != null) {
+                        selectionSortUI.nextStep();
+                    } else if (type.equals("Insertion Sort") && insertSortUI != null) {
+                        insertSortUI.nextStep();
+                    } else if (type.equals("Quick Sort") && fastSortUI != null) {
+                        fastSortUI.nextStep();
+                    }
+                });
+
+                pauseBtn.setOnAction(ev -> {
+                    if (type.equals("Selection Sort") && selectionSortUI != null) {
+                        selectionSortUI.pause();
+                    } else if (type.equals("Insertion Sort") && insertSortUI != null) {
+                        insertSortUI.pause();
+                    } else if (type.equals("Quick Sort") && fastSortUI != null) {
+                        fastSortUI.pause();
+                    }
+                });
+
+                resetBtn.setOnAction(ev -> {
+                    if (type.equals("Selection Sort") && selectionSortUI != null) {
+                        selectionSortUI.reset();
+                    } else if (type.equals("Insertion Sort") && insertSortUI != null) {
+                        insertSortUI.reset();
+                    } else if (type.equals("Quick Sort") && fastSortUI != null) {
+                        fastSortUI.reset();
                     }
                 });
                 break;

@@ -5,17 +5,21 @@ import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
+import org.example.core.InsertSort;
 
-public class InsertSortUI {
-    private HBox root;
-    private Rectangle[] bars;
-    private static final double BAR_WIDTH = 90;
-    private static final double SCALE = 50;
-    private static final double BASELINE = 600;
+public class InsertSortUI extends ControllableSortUI {
+
+    private int[] originalData;
+    private int[][] steps;
+    private SequentialTransition animation;
+    private long stepDelay = 500;
 
     public InsertSortUI(int[] data) {
-        root = new HBox(5);
-        bars = new Rectangle[data.length];
+        this.originalData = data.clone();
+        this.root = new HBox(SPACING);
+        this.bars = new Rectangle[data.length];
+        
+        // 初始化柱状图
         for (int i = 0; i < data.length; i++) {
             double height = data[i] * SCALE;
             Rectangle rect = new Rectangle(BAR_WIDTH, height, Color.LIGHTGREEN);
@@ -23,30 +27,87 @@ public class InsertSortUI {
             bars[i] = rect;
             root.getChildren().add(rect);
         }
+        
+        // 生成排序步骤
+        InsertSort sorter = new InsertSort();
+        this.steps = sorter.sort(data);
     }
 
     public HBox getRoot() {
         return root;
     }
 
-    public void visualizeSteps(int[][] steps, long delayMs) {
-        SequentialTransition seq = new SequentialTransition();
-
+    @Override
+    public void visualizeSteps(long stepDelay) {
+        this.stepDelay = stepDelay;
+        isPlaying = true;
+        currentStep = 0;
+        
+        // 创建新的动画序列
+        animation = new SequentialTransition();
+        
         for (int stepIndex = 1; stepIndex < steps.length; stepIndex++) {
+            final int stepIndexFinal = stepIndex;
             final int[] curr = steps[stepIndex].clone();
-            final int index = stepIndex;
+            
             Timeline highlight = new Timeline(
-                    new KeyFrame(Duration.ZERO, e -> highlightInsert(index)),
-                    new KeyFrame(Duration.millis(500)) // 保持0.3秒
+                    new KeyFrame(Duration.ZERO, e -> {
+                        highlightInsert(stepIndexFinal);
+                        currentStep = stepIndexFinal;
+                    }),
+                    new KeyFrame(Duration.millis(500))
             );
-            PauseTransition pause = new PauseTransition(Duration.millis(400));
+            PauseTransition pause = new PauseTransition(Duration.millis(stepDelay));
             Timeline update = new Timeline(
-                    new KeyFrame(Duration.millis(delayMs), e -> updateBars(curr))
+                    new KeyFrame(Duration.millis(stepDelay), e -> updateBars(curr))
             );
-            seq.getChildren().addAll(highlight, pause, update);
+            animation.getChildren().addAll(highlight, pause, update);
         }
 
-        seq.play();
+        animation.setOnFinished(e -> {
+            isPlaying = false;
+            currentStep = steps.length;
+        });
+        
+        animation.play();
+    }
+
+    @Override
+    public void nextStep() {
+        if (currentStep < steps.length) {
+            if (currentStep == 0) {
+                // 第一步特殊处理
+                highlightInsert(1);
+                updateBars(steps[1]);
+            } else if (currentStep < steps.length - 1) {
+                highlightInsert(currentStep + 1);
+                updateBars(steps[currentStep + 1]);
+            }
+            currentStep++;
+        }
+    }
+
+    @Override
+    public void reset() {
+        // 停止当前动画
+        if (animation != null) {
+            animation.stop();
+        }
+        isPlaying = false;
+        currentStep = 0;
+        
+        // 重置到初始状态
+        for (int i = 0; i < originalData.length; i++) {
+            double height = originalData[i] * SCALE;
+            bars[i].setHeight(height);
+            bars[i].setTranslateY(BASELINE - height);
+            bars[i].setFill(Color.LIGHTGREEN);
+        }
+    }
+
+    @Override
+    public int getTotalSteps() {
+        return steps.length;
     }
 
     private void highlightInsert(int index) {
