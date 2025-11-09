@@ -31,4 +31,10 @@
             <!-- 如果不加插件，也可以先空着 -->
         </plugins>
     </build>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>openjfx-plugin-repo</id>
+            <url>https://openjfx.io/maven/</url>
+        </pluginRepository>
+    </pluginRepositories>
 </project>
