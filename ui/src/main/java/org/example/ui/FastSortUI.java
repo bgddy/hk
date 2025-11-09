@@ -51,7 +51,7 @@ public class FastSortUI extends ControllableSortUI {
         
         for (int stepIndex = 0; stepIndex < steps.length; stepIndex++) {
             final int stepIndexFinal = stepIndex;
-            Timeline t = new Timeline(new KeyFrame(Duration.millis(stepDelay), e -> {
+            Timeline t = new Timeline(new KeyFrame(Duration.millis(this.stepDelay), e -> {
                 updateBars(steps[stepIndexFinal]);
                 currentStep = stepIndexFinal + 1;
             }));

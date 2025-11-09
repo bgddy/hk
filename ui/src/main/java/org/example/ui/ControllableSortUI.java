@@ -15,10 +15,10 @@ public abstract class ControllableSortUI {
     protected int currentStep = 0;
     protected boolean isPlaying = false;
     
-    protected static final double BAR_WIDTH = 40;
-    protected static final double SCALE = 30;
-    protected static final double BASELINE = 400;
-    protected static final double SPACING = 2;
+    protected static final double BAR_WIDTH = 50;
+    protected static final double SCALE = 50;
+    protected static final double BASELINE = 500;
+    protected static final double SPACING = 5;
 
     public HBox getRoot() {
         return root;

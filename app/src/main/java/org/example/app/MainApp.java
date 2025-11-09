@@ -28,45 +28,34 @@ public class MainApp extends Application {
         BorderPane root = new BorderPane();
 
         // ==================== 上半部分 ====================
-        HBox topPane = new HBox(10);
-        topPane.setPadding(new Insets(10));
-        topPane.setPrefHeight(180);
+        HBox topPane = new HBox(15);
+        topPane.setPadding(new Insets(15));
+        topPane.setPrefHeight(200);
+        topPane.setStyle("-fx-background-color: linear-gradient(to right, #e3f2fd, #f3e5f5);");
 
-        leftTopPane = new VBox(10);
-        leftTopPane.setPadding(new Insets(10));
-        leftTopPane.setPrefWidth(220);
-        leftTopPane.setStyle("-fx-border-color: black;");
+        leftTopPane = new VBox(12);
+        leftTopPane.setPadding(new Insets(15));
+        leftTopPane.setPrefWidth(250);
+        leftTopPane.setStyle("-fx-background-color: white; -fx-border-color: #bbdefb; -fx-border-radius: 8; -fx-background-radius: 8; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 5, 0, 0, 2);");
 
-        rightTopPane = new VBox(10);
-        rightTopPane.setPadding(new Insets(10));
-        rightTopPane.setPrefWidth(350);
-        rightTopPane.setStyle("-fx-border-color: black;");
+        rightTopPane = new VBox(12);
+        rightTopPane.setPadding(new Insets(15));
+        rightTopPane.setPrefWidth(400);
+        rightTopPane.setStyle("-fx-background-color: white; -fx-border-color: #bbdefb; -fx-border-radius: 8; -fx-background-radius: 8; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 5, 0, 0, 2);");
 
         topPane.getChildren().addAll(leftTopPane, rightTopPane);
 
         // ==================== 下半部分：画布和控制面板 ====================
         VBox bottomContainer = new VBox();
-        bottomContainer.setPrefHeight(600);
+        bottomContainer.setPrefHeight(650);
         
         bottomPane = new Pane();
-        bottomPane.setPrefHeight(550);
-        bottomPane.setStyle("-fx-border-color: black; -fx-background-color: white;");
+        bottomPane.setPrefHeight(580);
+        bottomPane.setStyle("-fx-border-color: #bbdefb; -fx-border-radius: 8; -fx-background-color: linear-gradient(to bottom, #fafafa, #ffffff); -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 8, 0, 0, 3);");
         VBox.setVgrow(bottomPane, Priority.ALWAYS);
         
-        // 控制面板
-        HBox controlPanel = new HBox(10);
-        controlPanel.setPadding(new Insets(10));
-        controlPanel.setStyle("-fx-background-color: #f0f0f0; -fx-border-color: #ccc;");
-        controlPanel.setPrefHeight(50);
-        
-        Button autoPlayBtn = new Button("自动播放");
-        Button nextStepBtn = new Button("下一步");
-        Button resetBtn = new Button("重置");
-        Button pauseBtn = new Button("暂停");
-        
-        controlPanel.getChildren().addAll(autoPlayBtn, nextStepBtn, pauseBtn, resetBtn);
-        
-        bottomContainer.getChildren().addAll(bottomPane, controlPanel);
+        // 控制面板将在updateInputArea中动态创建
+        bottomContainer.getChildren().add(bottomPane);
 
         root.setTop(topPane);
         root.setCenter(bottomContainer);
@@ -110,6 +99,18 @@ public class MainApp extends Application {
         rightTopPane.getChildren().clear();
         bottomPane.getChildren().clear();
 
+        // 创建控制面板按钮
+        Button autoPlayBtn = createStyledButton("自动播放", "#4caf50");
+        Button nextStepBtn = createStyledButton("下一步", "#2196f3");
+        Button resetBtn = createStyledButton("重置", "#ff9800");
+        Button pauseBtn = createStyledButton("暂停", "#f44336");
+        
+        HBox controlPanel = new HBox(15);
+        controlPanel.setPadding(new Insets(15));
+        controlPanel.setStyle("-fx-background-color: linear-gradient(to right, #e8f5e8, #e3f2fd); -fx-border-color: #c8e6c9; -fx-border-radius: 8;");
+        controlPanel.setPrefHeight(70);
+        controlPanel.getChildren().addAll(autoPlayBtn, nextStepBtn, pauseBtn, resetBtn);
+
         switch (type) {
             case "Selection Sort":
             case "Insertion Sort":
@@ -118,18 +119,8 @@ public class MainApp extends Application {
                 arrayInput.setPromptText("输入数组，如: 8,3,5,1,6");
                 Button sortBtn = new Button("开始排序");
                 
-                // 控制按钮
-                HBox controlBox = new HBox(10);
-                Button autoPlayBtn = new Button("自动播放");
-                Button nextStepBtn = new Button("下一步");
-                Button pauseBtn = new Button("暂停");
-                Button resetBtn = new Button("重置");
-                controlBox.getChildren().addAll(autoPlayBtn, nextStepBtn, pauseBtn, resetBtn);
-                
                 rightTopPane.getChildren().addAll(
-                    new Label("排序输入:"), arrayInput, sortBtn,
-                    new Separator(),
-                    new Label("控制:"), controlBox
+                    new Label("排序输入:"), arrayInput, sortBtn
                 );
 
                 sortBtn.setOnAction(ev -> {
@@ -149,6 +140,14 @@ public class MainApp extends Application {
                         fastSortUI = new FastSortUI(arr);
                         bottomPane.getChildren().add(fastSortUI.getRoot());
                     }
+                    
+                    // 添加控制面板到底部
+                    VBox bottomContainer = (VBox) bottomPane.getParent();
+                    if (bottomContainer.getChildren().size() > 1) {
+                        bottomContainer.getChildren().set(1, controlPanel);
+                    } else {
+                        bottomContainer.getChildren().add(controlPanel);
+                    }
                 });
 
                 // 控制按钮事件
@@ -158,7 +157,7 @@ public class MainApp extends Application {
                     } else if (type.equals("Insertion Sort") && insertSortUI != null) {
                         insertSortUI.visualizeSteps(1000);
                     } else if (type.equals("Quick Sort") && fastSortUI != null) {
-                        fastSortUI.visualizeSteps(1000);
+                        fastSortUI.visualizeSteps(1500); // 增加快速排序速度
                     }
                 });
 
@@ -289,6 +288,49 @@ public class MainApp extends Application {
                     matrixGraphUI.removeEdge(from, to);
                 });
                 break;
+        }
+    }
+
+    /** 创建样式化按钮 */
+    private Button createStyledButton(String text, String color) {
+        Button button = new Button(text);
+        button.setStyle("-fx-background-color: " + color + "; " +
+                       "-fx-text-fill: white; " +
+                       "-fx-font-weight: bold; " +
+                       "-fx-font-size: 14px; " +
+                       "-fx-padding: 8 16; " +
+                       "-fx-border-radius: 6; " +
+                       "-fx-background-radius: 6; " +
+                       "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 4, 0, 0, 2);");
+        
+        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: " + darkenColor(color) + "; " +
+                                                     "-fx-text-fill: white; " +
+                                                     "-fx-font-weight: bold; " +
+                                                     "-fx-font-size: 14px; " +
+                                                     "-fx-padding: 8 16; " +
+                                                     "-fx-border-radius: 6; " +
+                                                     "-fx-background-radius: 6; " +
+                                                     "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.3), 6, 0, 0, 3);"));
+        
+        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: " + color + "; " +
+                                                    "-fx-text-fill: white; " +
+                                                    "-fx-font-weight: bold; " +
+                                                    "-fx-font-size: 14px; " +
+                                                    "-fx-padding: 8 16; " +
+                                                    "-fx-border-radius: 6; " +
+                                                    "-fx-background-radius: 6; " +
+                                                    "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 4, 0, 0, 2);"));
+        return button;
+    }
+    
+    /** 加深颜色 */
+    private String darkenColor(String color) {
+        switch (color) {
+            case "#4caf50": return "#388e3c"; // 绿色加深
+            case "#2196f3": return "#1976d2"; // 蓝色加深
+            case "#ff9800": return "#f57c00"; // 橙色加深
+            case "#f44336": return "#d32f2f"; // 红色加深
+            default: return color;
         }
     }
 
