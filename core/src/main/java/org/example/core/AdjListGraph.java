@@ -102,7 +102,7 @@ public class AdjListGraph extends Graph{
         {
             temp = temp.getNext();
         }
-        if(temp.getNext().getElement().getVertex() == 0)
+        if(temp.getNext() == null)
         {
             return;
         }
@@ -155,14 +155,14 @@ public class AdjListGraph extends Graph{
     }
 
     public Edge[] getAllEdge(){
-        int n = vecticesNumber();
+        int n = verticesNumber();
         int totalEdges = edgeNumbers();
         Edge[] allEdges = new Edge[totalEdges];
         int index = 0;
 
         for(int i = 0;i < n;i++)
         {
-            for(Edge e = firstEdge(i);isEdge(e);e = nextEdge(e))
+            for(Edge e = firstEdge(i);e != null;e = nextEdge(e))
             {
                 int from = fromVertex(e);
                 int to = toVertex(e);
@@ -179,5 +179,86 @@ public class AdjListGraph extends Graph{
             return trimmed;
         }
         return  allEdges;
+    }
+    
+    /** 重写addVertex方法以扩展邻接表数组 */
+    @Override
+    public void addVertex() {
+        super.addVertex(); // 调用父类方法更新顶点数
+        
+        int newSize = verticesNumber();
+        LinkedList[] newGraphList = new LinkedList[newSize];
+        
+        // 复制原有邻接表
+        for (int i = 0; i < mGraphList.length; i++) {
+            newGraphList[i] = mGraphList[i];
+        }
+        
+        // 为新顶点创建新的链表
+        newGraphList[newSize - 1] = new LinkedList();
+        
+        mGraphList = newGraphList;
+    }
+    
+    /** 获取邻接表的字符串表示 */
+    public String getAdjListString() {
+        StringBuilder sb = new StringBuilder();
+        int n = verticesNumber();
+        
+        for (int i = 0; i < n; i++) {
+            sb.append(i).append(": ");
+            Link current = mGraphList[i].getHead().getNext();
+            
+            while (current != null) {
+                sb.append("-> ").append(current.getElement().getVertex())
+                  .append("(").append(current.getElement().getWeight()).append(")");
+                current = current.getNext();
+            }
+            sb.append("\n");
+        }
+        
+        return sb.toString();
+    }
+    
+    /** 清空所有边 */
+    public void clearAllEdges() {
+        int n = verticesNumber();
+        for (int i = 0; i < n; i++) {
+            mGraphList[i] = new LinkedList();
+        }
+        // 重置边数
+        while (edgesNumber() > 0) {
+            decEdgeNumber();
+        }
+        // 重置入度 - 通过重新初始化图来实现
+        for (int i = 0; i < n; i++) {
+            // 入度会在添加边时自动更新，清空后所有入度都为0
+        }
+    }
+    
+    /** 随机生成连通图 */
+    public void generateRandomGraph() {
+        clearAllEdges(); // 先清空所有边
+        
+        int n = verticesNumber();
+        if (n <= 1) return;
+        
+        // 确保图连通：生成一个生成树
+        for (int i = 1; i < n; i++) {
+            int from = (int)(Math.random() * i);
+            int weight = (int)(Math.random() * 10) + 1; // 权重1-10
+            setEdge(from, i, weight);
+        }
+        
+        // 随机添加一些额外边
+        int extraEdges = (int)(Math.random() * (n * 2)) + n; // 额外边数：n到3n之间
+        for (int i = 0; i < extraEdges; i++) {
+            int from = (int)(Math.random() * n);
+            int to = (int)(Math.random() * n);
+            if (from != to) {
+                int weight = (int)(Math.random() * 10) + 1;
+                setEdge(from, to, weight);
+            }
+        }
     }
 }

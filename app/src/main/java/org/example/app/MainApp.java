@@ -99,17 +99,25 @@ public class MainApp extends Application {
         rightTopPane.getChildren().clear();
         bottomPane.getChildren().clear();
 
-        // 创建控制面板按钮
-        Button autoPlayBtn = createStyledButton("自动播放", "#4caf50");
-        Button nextStepBtn = createStyledButton("下一步", "#2196f3");
-        Button resetBtn = createStyledButton("重置", "#ff9800");
-        Button pauseBtn = createStyledButton("暂停", "#f44336");
+        // 只在排序算法时创建控制面板
+        HBox controlPanel = null;
+        Button autoPlayBtn = null;
+        Button nextStepBtn = null;
+        Button resetBtn = null;
+        Button pauseBtn = null;
         
-        HBox controlPanel = new HBox(15);
-        controlPanel.setPadding(new Insets(15));
-        controlPanel.setStyle("-fx-background-color: linear-gradient(to right, #e8f5e8, #e3f2fd); -fx-border-color: #c8e6c9; -fx-border-radius: 8;");
-        controlPanel.setPrefHeight(70);
-        controlPanel.getChildren().addAll(autoPlayBtn, nextStepBtn, pauseBtn, resetBtn);
+        if (type.equals("Selection Sort") || type.equals("Insertion Sort") || type.equals("Quick Sort")) {
+            autoPlayBtn = createStyledButton("自动播放", "#4caf50");
+            nextStepBtn = createStyledButton("下一步", "#2196f3");
+            resetBtn = createStyledButton("重置", "#ff9800");
+            pauseBtn = createStyledButton("暂停", "#f44336");
+            
+            controlPanel = new HBox(15);
+            controlPanel.setPadding(new Insets(15));
+            controlPanel.setStyle("-fx-background-color: linear-gradient(to right, #e8f5e8, #e3f2fd); -fx-border-color: #c8e6c9; -fx-border-radius: 8;");
+            controlPanel.setPrefHeight(70);
+            controlPanel.getChildren().addAll(autoPlayBtn, nextStepBtn, pauseBtn, resetBtn);
+        }
 
         switch (type) {
             case "Selection Sort":
@@ -123,6 +131,9 @@ public class MainApp extends Application {
                     new Label("排序输入:"), arrayInput, sortBtn
                 );
 
+                // 创建effectively final的引用
+                final HBox finalControlPanel = controlPanel;
+                
                 sortBtn.setOnAction(ev -> {
                     String[] parts = arrayInput.getText().split(",");
                     int[] arr = new int[parts.length];
@@ -144,20 +155,20 @@ public class MainApp extends Application {
                     // 添加控制面板到底部
                     VBox bottomContainer = (VBox) bottomPane.getParent();
                     if (bottomContainer.getChildren().size() > 1) {
-                        bottomContainer.getChildren().set(1, controlPanel);
+                        bottomContainer.getChildren().set(1, finalControlPanel);
                     } else {
-                        bottomContainer.getChildren().add(controlPanel);
+                        bottomContainer.getChildren().add(finalControlPanel);
                     }
                 });
 
                 // 控制按钮事件
                 autoPlayBtn.setOnAction(ev -> {
                     if (type.equals("Selection Sort") && selectionSortUI != null) {
-                        selectionSortUI.visualizeSteps(1000);
+                        selectionSortUI.visualizeSteps(1000L);
                     } else if (type.equals("Insertion Sort") && insertSortUI != null) {
-                        insertSortUI.visualizeSteps(1000);
+                        insertSortUI.visualizeSteps(1000L);
                     } else if (type.equals("Quick Sort") && fastSortUI != null) {
-                        fastSortUI.visualizeSteps(1500); // 增加快速排序速度
+                        fastSortUI.visualizeSteps(1500L); // 增加快速排序速度
                     }
                 });
 
@@ -172,13 +183,8 @@ public class MainApp extends Application {
                 });
 
                 pauseBtn.setOnAction(ev -> {
-                    if (type.equals("Selection Sort") && selectionSortUI != null) {
-                        selectionSortUI.pause();
-                    } else if (type.equals("Insertion Sort") && insertSortUI != null) {
-                        insertSortUI.pause();
-                    } else if (type.equals("Quick Sort") && fastSortUI != null) {
-                        fastSortUI.pause();
-                    }
+                    // 暂停功能暂时不实现，因为排序UI类没有pause方法
+                    System.out.println("暂停功能暂未实现");
                 });
 
                 resetBtn.setOnAction(ev -> {
@@ -194,97 +200,187 @@ public class MainApp extends Application {
 
             case "Adjacency List":
                 rightTopPane.getChildren().addAll(new Label("邻接表图输入:"));
+
+                // 直接使用VBox容器，移除滚动面板
+                VBox adjListContent = new VBox(8);
+                adjListContent.setPadding(new Insets(10));
+                
+                // 邻接表顶点固定，只保留边操作
+                Label vertexInfo = new Label("顶点: 0-4 (固定5个顶点)");
+                vertexInfo.setStyle("-fx-font-weight: bold; -fx-text-fill: #2c3e50;");
+
                 TextField fromList = new TextField();
-                fromList.setPromptText("From 顶点");
+                fromList.setPromptText("From 顶点 (0-4)");
+                fromList.setPrefWidth(180); // 扩大输入框宽度
+                fromList.setPrefHeight(35); // 扩大输入框高度
                 TextField toList = new TextField();
-                toList.setPromptText("To 顶点");
+                toList.setPromptText("To 顶点 (0-4)");
+                toList.setPrefWidth(180); // 扩大输入框宽度
+                toList.setPrefHeight(35); // 扩大输入框高度
                 TextField weightList = new TextField();
                 weightList.setPromptText("权重");
+                weightList.setPrefWidth(180); // 扩大输入框宽度
+                weightList.setPrefHeight(35); // 扩大输入框高度
 
                 Button addEdgeList = new Button("添加边");
                 Button delEdgeList = new Button("删除边");
-                Button dfsBtn = new Button("DFS 遍历");
-                Button bfsBtn = new Button("BFS 遍历");
-                Button kruskalBtn = new Button("最小生成树");
 
-                rightTopPane.getChildren().addAll(fromList, toList, weightList, addEdgeList, delEdgeList, dfsBtn, bfsBtn, kruskalBtn);
-                bottomPane.getChildren().add(adjGraphUI.getRoot());
-                adjGraphUI.drawEdges();
+                // 添加遍历控制和起始点选择
+                Label traversalLabel = new Label("遍历控制:");
+                traversalLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+                
+                TextField startVertexField = new TextField();
+                startVertexField.setPromptText("起始顶点 (0-4)");
+                startVertexField.setPrefWidth(180);
+                startVertexField.setPrefHeight(35);
+                
+                // 遍历控制按钮
+                HBox traversalButtons = new HBox(5);
+                Button bfsButton = createStyledButton("BFS遍历", "#4caf50");
+                Button dfsButton = createStyledButton("DFS遍历", "#2196f3");
+                Button mstButton = createStyledButton("最小生成树", "#ff9800");
+                traversalButtons.getChildren().addAll(bfsButton, dfsButton, mstButton);
+
+                // 创建水平布局来紧凑排列按钮
+                HBox edgeButtons = new HBox(5);
+                edgeButtons.getChildren().addAll(addEdgeList, delEdgeList);
+
+                // 添加图管理按钮
+                Label graphManagementLabel = new Label("图管理:");
+                graphManagementLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+                
+                HBox graphManagementButtons = new HBox(5);
+                Button clearAllEdgesBtn = createStyledButton("清空所有边", "#f44336");
+                Button randomGraphBtn = createStyledButton("随机生成图", "#9c27b0");
+                graphManagementButtons.getChildren().addAll(clearAllEdgesBtn, randomGraphBtn);
+                
+                // 图管理按钮事件
+                clearAllEdgesBtn.setOnAction(ev -> {
+                    adjGraphUI.clearAllEdges();
+                });
+                
+                randomGraphBtn.setOnAction(ev -> {
+                    adjGraphUI.generateRandomGraph();
+                });
+
+                adjListContent.getChildren().addAll(
+                        vertexInfo,
+                        new Label("边操作:"), fromList, toList, weightList, edgeButtons,
+                        graphManagementLabel, graphManagementButtons,
+                        traversalLabel, startVertexField, traversalButtons
+                );
+                
+                rightTopPane.getChildren().add(adjListContent);
+
+                bottomPane.getChildren().add(adjGraphUI.getPane());
 
                 addEdgeList.setOnAction(ev -> {
                     int from = Integer.parseInt(fromList.getText());
                     int to = Integer.parseInt(toList.getText());
                     int w = Integer.parseInt(weightList.getText());
-                    adjGraphUI.insertEdge(from, to, w);
+                    adjGraphUI.addEdge(from, to, w);
                 });
                 delEdgeList.setOnAction(ev -> {
                     int from = Integer.parseInt(fromList.getText());
                     int to = Integer.parseInt(toList.getText());
-                    adjGraphUI.deleteEdge(from, to);
+                    adjGraphUI.removeEdge(from, to);
                 });
 
-                dfsBtn.setOnAction(ev -> {
-                    TextInputDialog dialog = new TextInputDialog("0");
-                    dialog.setHeaderText("请输入DFS起始顶点:");
-                    int start = Integer.parseInt(dialog.showAndWait().get());
-                    adjGraphUI.visualizeDFS(start);
+                // 算法按钮事件
+                bfsButton.setOnAction(ev -> {
+                    try {
+                        String startVertexText = startVertexField.getText();
+                        adjGraphUI.performBFS(startVertexText);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 });
 
-                bfsBtn.setOnAction(ev -> {
-                    TextInputDialog dialog = new TextInputDialog("0");
-                    dialog.setHeaderText("请输入BFS起始顶点:");
-                    int start = Integer.parseInt(dialog.showAndWait().get());
-                    adjGraphUI.visualizeBFS(start);
+                dfsButton.setOnAction(ev -> {
+                    try {
+                        String startVertexText = startVertexField.getText();
+                        adjGraphUI.performDFS(startVertexText);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 });
 
-                kruskalBtn.setOnAction(ev -> {
-                    Edge[] mstEdges = new kruskal(adjGraph).generateMST();
-                    adjGraphUI.visualizeKruskal(mstEdges);
+                mstButton.setOnAction(ev -> {
+                    try {
+                        adjGraphUI.performMST();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 });
                 break;
 
             case "Adjacency Matrix":
                 rightTopPane.getChildren().addAll(new Label("邻接矩阵图输入:"));
 
-                TextField vertexField = new TextField();
-                vertexField.setPromptText("顶点 ID");
-                Button addVertexBtn = new Button("添加顶点");
-                Button delVertexBtn = new Button("删除顶点");
+                // 简化邻接矩阵输入区域，只保留基本操作
+                VBox matrixContent = new VBox(8);
+                matrixContent.setPadding(new Insets(10));
+                
+                Label matrixVertexInfo = new Label("顶点操作:");
+                matrixVertexInfo.setStyle("-fx-font-weight: bold; -fx-text-fill: #2c3e50;");
 
-                TextField fromM = new TextField();
-                fromM.setPromptText("From 顶点");
-                TextField toM = new TextField();
-                toM.setPromptText("To 顶点");
-                TextField weightM = new TextField();
-                weightM.setPromptText("权重");
+                TextField matrixVertexField = new TextField();
+                matrixVertexField.setPromptText("顶点 ID");
+                matrixVertexField.setPrefWidth(180);
+                matrixVertexField.setPrefHeight(35);
+                
+                HBox matrixVertexButtons = new HBox(5);
+                Button matrixAddVertexBtn = new Button("添加顶点");
+                Button matrixDelVertexBtn = new Button("删除顶点");
+                matrixVertexButtons.getChildren().addAll(matrixAddVertexBtn, matrixDelVertexBtn);
 
-                Button addEdgeM = new Button("添加边");
-                Button delEdgeM = new Button("删除边");
+                Label matrixEdgeInfo = new Label("边操作:");
+                matrixEdgeInfo.setStyle("-fx-font-weight: bold; -fx-text-fill: #2c3e50;");
 
-                rightTopPane.getChildren().addAll(
-                        new Label("顶点操作:"), vertexField, addVertexBtn, delVertexBtn,
-                        new Label("边操作:"), fromM, toM, weightM, addEdgeM, delEdgeM
+                TextField matrixFrom = new TextField();
+                matrixFrom.setPromptText("From 顶点");
+                matrixFrom.setPrefWidth(180);
+                matrixFrom.setPrefHeight(35);
+                TextField matrixTo = new TextField();
+                matrixTo.setPromptText("To 顶点");
+                matrixTo.setPrefWidth(180);
+                matrixTo.setPrefHeight(35);
+                TextField matrixWeight = new TextField();
+                matrixWeight.setPromptText("权重");
+                matrixWeight.setPrefWidth(180);
+                matrixWeight.setPrefHeight(35);
+
+                HBox matrixEdgeButtons = new HBox(5);
+                Button matrixAddEdge = new Button("添加边");
+                Button matrixDelEdge = new Button("删除边");
+                matrixEdgeButtons.getChildren().addAll(matrixAddEdge, matrixDelEdge);
+
+                matrixContent.getChildren().addAll(
+                        matrixVertexInfo, matrixVertexField, matrixVertexButtons,
+                        matrixEdgeInfo, matrixFrom, matrixTo, matrixWeight, matrixEdgeButtons
                 );
+                
+                rightTopPane.getChildren().add(matrixContent);
 
                 bottomPane.getChildren().add(matrixGraphUI.getPane());
 
-                addVertexBtn.setOnAction(ev -> {
-                    int id = Integer.parseInt(vertexField.getText());
+                matrixAddVertexBtn.setOnAction(ev -> {
+                    int id = Integer.parseInt(matrixVertexField.getText());
                     matrixGraphUI.addVertex(id);
                 });
-                delVertexBtn.setOnAction(ev -> {
-                    int id = Integer.parseInt(vertexField.getText());
+                matrixDelVertexBtn.setOnAction(ev -> {
+                    int id = Integer.parseInt(matrixVertexField.getText());
                     matrixGraphUI.removeVertex(id);
                 });
-                addEdgeM.setOnAction(ev -> {
-                    int from = Integer.parseInt(fromM.getText());
-                    int to = Integer.parseInt(toM.getText());
-                    int w = Integer.parseInt(weightM.getText());
+                matrixAddEdge.setOnAction(ev -> {
+                    int from = Integer.parseInt(matrixFrom.getText());
+                    int to = Integer.parseInt(matrixTo.getText());
+                    int w = Integer.parseInt(matrixWeight.getText());
                     matrixGraphUI.addEdge(from, to, w);
                 });
-                delEdgeM.setOnAction(ev -> {
-                    int from = Integer.parseInt(fromM.getText());
-                    int to = Integer.parseInt(toM.getText());
+                matrixDelEdge.setOnAction(ev -> {
+                    int from = Integer.parseInt(matrixFrom.getText());
+                    int to = Integer.parseInt(matrixTo.getText());
                     matrixGraphUI.removeEdge(from, to);
                 });
                 break;

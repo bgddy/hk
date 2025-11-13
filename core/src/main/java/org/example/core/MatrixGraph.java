@@ -2,24 +2,66 @@ package org.example.core;
 
 public class MatrixGraph extends Graph{
     private int[][] mMatrix;
+    private int maxVertices;
+    private boolean[] vertexExists; // 跟踪哪些顶点存在
 
     public MatrixGraph(int numvertex) {
         super(numvertex);
+        this.maxVertices = numvertex;
         mMatrix = new int[numvertex][numvertex];
+        vertexExists = new boolean[numvertex];
         for(int i = 0;i < numvertex;i ++ )
         {
             for(int j = 0;j < numvertex;j ++)
             {
                 mMatrix[i][j] = 0;
             }
+            vertexExists[i] = true; // 初始顶点都存在
         }
+    }
+
+    /** 动态添加顶点 */
+    public void addVertex() {
+        // 如果当前顶点数已经达到最大容量，需要扩展矩阵
+        if (verticesNumber() >= maxVertices) {
+            expandMatrix();
+        }
+        // 调用基类的addVertex方法增加顶点数
+        super.addVertex();
+    }
+
+    /** 扩展矩阵大小 */
+    private void expandMatrix() {
+        int newSize = maxVertices * 2;
+        int[][] newMatrix = new int[newSize][newSize];
+        boolean[] newVertexExists = new boolean[newSize];
+        
+        // 复制原有数据
+        for (int i = 0; i < maxVertices; i++) {
+            for (int j = 0; j < maxVertices; j++) {
+                newMatrix[i][j] = mMatrix[i][j];
+            }
+            newVertexExists[i] = vertexExists[i];
+        }
+        
+        // 初始化新区域
+        for (int i = maxVertices; i < newSize; i++) {
+            for (int j = 0; j < newSize; j++) {
+                newMatrix[i][j] = 0;
+            }
+            newVertexExists[i] = false; // 新顶点初始不存在
+        }
+        
+        mMatrix = newMatrix;
+        vertexExists = newVertexExists;
+        maxVertices = newSize;
     }
 
     @Override
     public Edge firstEdge(int onevertex) {
         Edge medge = new Edge();
         medge.setMfrom(onevertex);
-        for(int i = 0;i < vecticesNumber();i ++)
+        for(int i = 0;i < verticesNumber();i ++)
         {
             if(mMatrix[onevertex][i] != 0 )
             {
@@ -39,7 +81,7 @@ public class MatrixGraph extends Graph{
     public Edge nextEdge(Edge pre) {
         int from = pre.getMfrom();
         int start = pre.getMto() + 1;
-        for(int i = start;i < vecticesNumber();i ++)
+        for(int i = start;i < verticesNumber();i ++)
             if(mMatrix[from][i] != 0 ){
                 Edge mEdge = new Edge(from ,i , mMatrix[from][i]);
                 return mEdge;
@@ -85,5 +127,125 @@ public class MatrixGraph extends Graph{
     @Override
     public int weight(Edge edge) {
         return edge.getMweight();
+    }
+
+    /** 标记顶点存在状态 */
+    public void setVertexExists(int vertexId, boolean exists) {
+        if (vertexId >= 0 && vertexId < maxVertices) {
+            vertexExists[vertexId] = exists;
+        }
+    }
+    
+    /** 检查顶点是否存在 */
+    public boolean isVertexExists(int vertexId) {
+        return vertexId >= 0 && vertexId < maxVertices && vertexExists[vertexId];
+    }
+    
+    /** 获取当前存在的顶点数量 */
+    public int getExistingVerticesCount() {
+        int count = 0;
+        for (int i = 0; i < maxVertices; i++) {
+            if (vertexExists[i]) {
+                count++;
+            }
+        }
+        return count;
+    }
+    
+    /** 获取边的权重 */
+    public int getEdge(int from, int to) {
+        if (from >= 0 && from < maxVertices && to >= 0 && to < maxVertices) {
+            return mMatrix[from][to];
+        }
+        return 0;
+    }
+    
+    /** 获取邻接矩阵的字符串表示 - 只显示存在的顶点 */
+    public String getMatrixString() {
+        StringBuilder sb = new StringBuilder();
+        
+        // 收集存在的顶点ID
+        java.util.List<Integer> existingVertices = new java.util.ArrayList<>();
+        for (int i = 0; i < maxVertices; i++) {
+            if (vertexExists[i]) {
+                existingVertices.add(i);
+            }
+        }
+        
+        int n = existingVertices.size();
+        if (n == 0) {
+            return "图为空";
+        }
+        
+        // 添加表头
+        sb.append("   ");
+        for (int vertexId : existingVertices) {
+            sb.append(String.format("%3d", vertexId));
+        }
+        sb.append("\n");
+        
+        // 添加分隔线
+        sb.append("   ");
+        for (int i = 0; i < n; i++) {
+            sb.append("---");
+        }
+        sb.append("\n");
+        
+        // 添加矩阵内容
+        for (int vertexId : existingVertices) {
+            sb.append(String.format("%2d|", vertexId));
+            for (int otherVertexId : existingVertices) {
+                sb.append(String.format("%3d", mMatrix[vertexId][otherVertexId]));
+            }
+            sb.append("\n");
+        }
+        
+        return sb.toString();
+    }
+    
+    /** 清空所有边 */
+    public void clearAllEdges() {
+        int n = verticesNumber();
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                if (mMatrix[i][j] != 0) {
+                    mMatrix[i][j] = 0;
+                }
+            }
+        }
+        // 重置边数
+        while (edgesNumber() > 0) {
+            decEdgeNumber();
+        }
+        // 重置入度 - 通过重新初始化图来实现
+        for (int i = 0; i < n; i++) {
+            // 入度会在添加边时自动更新，清空后所有入度都为0
+        }
+    }
+    
+    /** 随机生成连通图 */
+    public void generateRandomGraph() {
+        clearAllEdges(); // 先清空所有边
+        
+        int n = verticesNumber();
+        if (n <= 1) return;
+        
+        // 确保图连通：生成一个生成树
+        for (int i = 1; i < n; i++) {
+            int from = (int)(Math.random() * i);
+            int weight = (int)(Math.random() * 10) + 1; // 权重1-10
+            setEdge(from, i, weight);
+        }
+        
+        // 随机添加一些额外边
+        int extraEdges = (int)(Math.random() * (n * 2)) + n; // 额外边数：n到3n之间
+        for (int i = 0; i < extraEdges; i++) {
+            int from = (int)(Math.random() * n);
+            int to = (int)(Math.random() * n);
+            if (from != to) {
+                int weight = (int)(Math.random() * 10) + 1;
+                setEdge(from, to, weight);
+            }
+        }
     }
 }
