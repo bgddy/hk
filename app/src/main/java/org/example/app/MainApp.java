@@ -1,3 +1,4 @@
+// vmArgs = --module-path /Users/yuyongwenshu/.m2/repository/org/openjfx/javafx-base/20/javafx-base-20.jar:/Users/yuyongwenshu/.m2/repository/org/openjfx/javafx-controls/20/javafx-controls-20.jar:/Users/yuyongwenshu/.m2/repository/org/openjfx/javafx-graphics/20/javafx-graphics-20.jar:/Users/yuyongwenshu/.m2/repository/org/openjfx/javafx-fxml/20/javafx-fxml-20.jar --add-modules javafx.controls,javafx.fxml,javafx.graphics
 package org.example.app;
 
 import javafx.application.Application;
