@@ -1,5 +1,7 @@
 package org.example.ui;
 
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -8,6 +10,8 @@ import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
+import javafx.util.Duration;
+import org.example.core.Dijkstra;
 import org.example.core.MatrixGraph;
 
 import java.io.*;
@@ -49,13 +53,12 @@ public class MatrixGraphUI {
         graphPane.setStyle("-fx-background-color: #f8f9fa; -fx-border-color: #dee2e6; -fx-border-width: 1;");
         
         // 右侧上部：邻接矩阵显示区域
-        // 注意：这里不再创建控制按钮，按钮由 MainApp 在右上角统一管理
         VBox matrixPane = new VBox(10);
         matrixPane.setPadding(new Insets(15));
         matrixPane.setPrefHeight(350);
         matrixPane.setStyle("-fx-background-color: #ffffff; -fx-border-color: #dee2e6; -fx-border-width: 1;");
         
-        Text matrixTitle = new Text("邻接矩阵数据");
+        Text matrixTitle = new Text("数据与日志");
         matrixTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-fill: #2c3e50;");
         
         // 滚动面板防止矩阵过大
@@ -86,6 +89,100 @@ public class MatrixGraphUI {
 
     public Pane getPane() {
         return root;
+    }
+
+    public void performDijkstra(String startText, String endText) {
+        resetStyles();
+        try {
+            int start = Integer.parseInt(startText.trim());
+            int end = Integer.parseInt(endText.trim());
+            
+            // 检查节点是否存在
+            if (!graph.isVertexExists(start) || !graph.isVertexExists(end)) {
+                matrixDisplay.setText(graph.getMatrixString() + "\n\n错误: 顶点不存在");
+                return;
+            }
+            
+            Dijkstra dijkstra = new Dijkstra(graph);
+            List<Integer> path = dijkstra.findShortestPath(start, end);
+            
+            StringBuilder sb = new StringBuilder(graph.getMatrixString());
+            sb.append("\n\n").append(dijkstra.getProcessLog());
+            
+            if (path.isEmpty() && start != end) {
+                sb.append("\n结果: 无法从 ").append(start).append( " 到达 ").append(end);
+            } else {
+                sb.append("\n=== 最短路径结果 ===\n");
+                sb.append("路径: ");
+                for (int i = 0; i < path.size(); i++) {
+                    sb.append(path.get(i)).append(i < path.size() - 1 ? " -> " : "");
+                }
+                sb.append("\n总权重: ").append(dijkstra.getShortestDistance(end));
+                
+                animatePath(path);
+            }
+            matrixDisplay.setText(sb.toString());
+            
+        } catch (NumberFormatException e) {
+            matrixDisplay.setText(graph.getMatrixString() + "\n\n错误: 请输入有效的顶点编号");
+        }
+    }
+    
+    private void animatePath(List<Integer> path) {
+        if (path.size() < 1) return;
+        
+        Timeline timeline = new Timeline();
+        
+        for (int i = 0; i < path.size(); i++) {
+            final int index = i;
+            final int vertexId = path.get(index);
+            
+            // 关键帧：点亮顶点
+            KeyFrame kfVertex = new KeyFrame(Duration.millis(i * 800), e -> {
+                Circle c = nodes.get(vertexId);
+                if (c != null) {
+                    c.setFill(Color.GOLD);
+                    c.setRadius(25);
+                }
+            });
+            timeline.getKeyFrames().add(kfVertex);
+            
+            // 关键帧：点亮边 (如果不是最后一个点)
+            if (i < path.size() - 1) {
+                final int nextVertexId = path.get(i + 1);
+                KeyFrame kfEdge = new KeyFrame(Duration.millis(i * 800 + 400), e -> {
+                    // 邻接矩阵UI中键是 "from-to"
+                    String key = vertexId + "-" + nextVertexId;
+                    EdgeUI edgeUI = edges.get(key);
+                    if (edgeUI != null) {
+                        edgeUI.line.setStroke(Color.RED);
+                        edgeUI.line.setStrokeWidth(4);
+                    } else {
+                        // 尝试反向（如果是无向图显示逻辑，或者数据录入时有差异）
+                        String revKey = nextVertexId + "-" + vertexId;
+                        EdgeUI revEdgeUI = edges.get(revKey);
+                        if (revEdgeUI != null) {
+                            revEdgeUI.line.setStroke(Color.RED);
+                            revEdgeUI.line.setStrokeWidth(4);
+                        }
+                    }
+                });
+                timeline.getKeyFrames().add(kfEdge);
+            }
+        }
+        timeline.play();
+    }
+
+    private void resetStyles() {
+        for (Circle c : nodes.values()) {
+            c.setFill(Color.LIGHTBLUE);
+            c.setStroke(Color.BLACK);
+            c.setRadius(20);
+        }
+        for (EdgeUI e : edges.values()) {
+            e.line.setStroke(Color.GRAY);
+            e.line.setStrokeWidth(2);
+        }
     }
 
     /** 更新邻接矩阵显示 */

@@ -1,5 +1,7 @@
 package org.example.ui;
 
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.geometry.Insets;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.*;
@@ -8,13 +10,16 @@ import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
+import javafx.util.Duration;
 import org.example.core.AdjListGraph;
 import org.example.core.BFS;
 import org.example.core.DFS;
+import org.example.core.Dijkstra;
 import org.example.core.kruskal;
 import org.example.core.Edge;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -56,7 +61,6 @@ public class AdjListGraphUI {
         graphScrollPane.setStyle("-fx-background-color: transparent; -fx-border-color: #dee2e6; -fx-border-width: 1;");
         
         // ================== 右侧：仅保留文本显示 ==================
-        // 注意：这里不再创建控制按钮，按钮由 MainApp 在右上角统一管理
         VBox rightPane = new VBox(10);
         rightPane.setPadding(new Insets(0, 0, 0, 5));
         rightPane.setPrefWidth(340);
@@ -65,7 +69,7 @@ public class AdjListGraphUI {
         textContainer.setPadding(new Insets(10));
         textContainer.setStyle("-fx-background-color: #ffffff; -fx-border-color: #dee2e6; -fx-border-width: 1;");
         
-        Text adjListTitle = new Text("邻接表数据");
+        Text adjListTitle = new Text("数据与日志");
         adjListTitle.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-fill: #2c3e50;");
         
         ScrollPane textScrollPane = new ScrollPane();
@@ -152,6 +156,7 @@ public class AdjListGraphUI {
     }
 
     public void performBFS(String startVertexText) {
+        resetStyles();
         try {
             int start = Integer.parseInt(startVertexText.trim());
             if (!nodes.containsKey(start)) { adjListDisplay.setText("错误: 顶点不存在"); return; }
@@ -161,6 +166,7 @@ public class AdjListGraphUI {
     }
 
     public void performDFS(String startVertexText) {
+        resetStyles();
         try {
             int start = Integer.parseInt(startVertexText.trim());
             if (!nodes.containsKey(start)) { adjListDisplay.setText("错误: 顶点不存在"); return; }
@@ -170,6 +176,7 @@ public class AdjListGraphUI {
     }
 
     public void performMST() {
+        resetStyles();
         kruskal k = new kruskal(graph); Edge[] mst = k.generateMST();
         if (mst == null) { adjListDisplay.setText("无法生成MST"); return; }
         StringBuilder sb = new StringBuilder(graph.getAdjListString()); sb.append("\n\n=== MST 边 ===\n");
@@ -182,7 +189,84 @@ public class AdjListGraphUI {
         adjListDisplay.setText(sb.toString());
     }
 
+    public void performDijkstra(String startText, String endText) {
+        resetStyles();
+        try {
+            int start = Integer.parseInt(startText.trim());
+            int end = Integer.parseInt(endText.trim());
+            
+            if (!nodes.containsKey(start) || !nodes.containsKey(end)) {
+                adjListDisplay.setText("错误: 顶点不存在");
+                return;
+            }
+            
+            Dijkstra dijkstra = new Dijkstra(graph);
+            List<Integer> path = dijkstra.findShortestPath(start, end);
+            
+            StringBuilder sb = new StringBuilder(graph.getAdjListString());
+            sb.append("\n\n").append(dijkstra.getProcessLog());
+            
+            if (path.isEmpty() && start != end) {
+                sb.append("\n结果: 无法从 ").append(start).append( " 到达 ").append(end);
+                adjListDisplay.setText(sb.toString());
+            } else {
+                sb.append("\n=== 最短路径结果 ===\n");
+                sb.append("路径: ");
+                for (int i = 0; i < path.size(); i++) {
+                    sb.append(path.get(i)).append(i < path.size() - 1 ? " -> " : "");
+                }
+                sb.append("\n总权重: ").append(dijkstra.getShortestDistance(end));
+                adjListDisplay.setText(sb.toString());
+                
+                animatePath(path);
+            }
+        } catch (NumberFormatException e) {
+            adjListDisplay.setText("错误: 请输入有效的顶点编号");
+        }
+    }
+
     // --- 辅助方法 ---
+    
+    private void animatePath(List<Integer> path) {
+        if (path.size() < 1) return;
+        
+        Timeline timeline = new Timeline();
+        
+        for (int i = 0; i < path.size(); i++) {
+            final int index = i;
+            final int vertexId = path.get(index);
+            
+            // 关键帧：点亮顶点
+            KeyFrame kfVertex = new KeyFrame(Duration.millis(i * 800), e -> {
+                Circle c = nodes.get(vertexId);
+                if (c != null) {
+                    c.setFill(Color.GOLD);
+                    c.setRadius(25);
+                }
+            });
+            timeline.getKeyFrames().add(kfVertex);
+            
+            // 关键帧：点亮边 (如果不是最后一个点)
+            if (i < path.size() - 1) {
+                final int nextVertexId = path.get(i + 1);
+                KeyFrame kfEdge = new KeyFrame(Duration.millis(i * 800 + 400), e -> {
+                    // 邻接表可能是无向图实现，尝试查找两种方向的边
+                    int min = Math.min(vertexId, nextVertexId);
+                    int max = Math.max(vertexId, nextVertexId);
+                    String key = min + "-" + max;
+                    EdgeUI edgeUI = edges.get(key);
+                    
+                    if (edgeUI != null) {
+                        edgeUI.line.setStroke(Color.RED);
+                        edgeUI.line.setStrokeWidth(4);
+                    }
+                });
+                timeline.getKeyFrames().add(kfEdge);
+            }
+        }
+        
+        timeline.play();
+    }
 
     private void updateAdjListDisplay() {
         if (graph != null) {
@@ -342,7 +426,17 @@ public class AdjListGraphUI {
     }
 
     public void clearDisplay() { resetStyles(); updateAdjListDisplay(); }
-    private void resetStyles() { for (Circle c : nodes.values()) { c.setFill(Color.LIGHTGREEN); c.setStroke(Color.BLACK); } for (EdgeUI e : edges.values()) { e.line.setStroke(Color.GRAY); e.line.setStrokeWidth(2); } }
+    private void resetStyles() { 
+        for (Circle c : nodes.values()) { 
+            c.setFill(Color.LIGHTGREEN); 
+            c.setStroke(Color.BLACK); 
+            c.setRadius(20); 
+        } 
+        for (EdgeUI e : edges.values()) { 
+            e.line.setStroke(Color.GRAY); 
+            e.line.setStrokeWidth(2); 
+        } 
+    }
     public void clearAllEdges() { graph.clearAllEdges(); for (EdgeUI e : edges.values()) { graphPane.getChildren().removeAll(e.line, e.label); } edges.clear(); updateAdjListDisplay(); }
     public void generateRandomGraph() { clearAllEdges(); graph.generateRandomGraph(); int n = graph.verticesNumber(); for (int i = 0; i < n; i++) { Edge e = graph.firstEdge(i); while (e != null) { int from = e.getMfrom(); int to = e.getMto(); if (from < to) addEdge(from, to, e.getMweight()); e = graph.nextEdge(e); } } updateAdjListDisplay(); }
 }
