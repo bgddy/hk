@@ -202,31 +202,30 @@ public class MainApp extends Application {
             case "Adjacency List":
                 rightTopPane.getChildren().addAll(new Label("邻接表图输入:"));
 
-                // 直接使用VBox容器，移除滚动面板
                 VBox adjListContent = new VBox(8);
                 adjListContent.setPadding(new Insets(10));
                 
-                // 邻接表顶点固定，只保留边操作
                 Label vertexInfo = new Label("顶点: 0-4 (固定5个顶点)");
                 vertexInfo.setStyle("-fx-font-weight: bold; -fx-text-fill: #2c3e50;");
 
                 TextField fromList = new TextField();
                 fromList.setPromptText("From 顶点 (0-4)");
-                fromList.setPrefWidth(180); // 扩大输入框宽度
-                fromList.setPrefHeight(35); // 扩大输入框高度
+                fromList.setPrefWidth(180);
+                fromList.setPrefHeight(35);
+                
                 TextField toList = new TextField();
                 toList.setPromptText("To 顶点 (0-4)");
-                toList.setPrefWidth(180); // 扩大输入框宽度
-                toList.setPrefHeight(35); // 扩大输入框高度
+                toList.setPrefWidth(180);
+                toList.setPrefHeight(35);
+                
                 TextField weightList = new TextField();
                 weightList.setPromptText("权重");
-                weightList.setPrefWidth(180); // 扩大输入框宽度
-                weightList.setPrefHeight(35); // 扩大输入框高度
+                weightList.setPrefWidth(180);
+                weightList.setPrefHeight(35);
 
                 Button addEdgeList = new Button("添加边");
                 Button delEdgeList = new Button("删除边");
 
-                // 添加遍历控制和起始点选择
                 Label traversalLabel = new Label("遍历控制:");
                 traversalLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
                 
@@ -235,34 +234,33 @@ public class MainApp extends Application {
                 startVertexField.setPrefWidth(180);
                 startVertexField.setPrefHeight(35);
                 
-                // 遍历控制按钮
                 HBox traversalButtons = new HBox(5);
                 Button bfsButton = createStyledButton("BFS遍历", "#4caf50");
                 Button dfsButton = createStyledButton("DFS遍历", "#2196f3");
                 Button mstButton = createStyledButton("最小生成树", "#ff9800");
                 traversalButtons.getChildren().addAll(bfsButton, dfsButton, mstButton);
 
-                // 创建水平布局来紧凑排列按钮
                 HBox edgeButtons = new HBox(5);
                 edgeButtons.getChildren().addAll(addEdgeList, delEdgeList);
 
-                // 添加图管理按钮
                 Label graphManagementLabel = new Label("图管理:");
                 graphManagementLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
                 
+                // [关键修改] 在这里添加保存和打开按钮
                 HBox graphManagementButtons = new HBox(5);
-                Button clearAllEdgesBtn = createStyledButton("清空所有边", "#f44336");
-                Button randomGraphBtn = createStyledButton("随机生成图", "#9c27b0");
-                graphManagementButtons.getChildren().addAll(clearAllEdgesBtn, randomGraphBtn);
+                Button clearAllEdgesBtn = createStyledButton("清空", "#f44336");
+                Button randomGraphBtn = createStyledButton("随机", "#9c27b0");
+                Button saveGraphBtn = createStyledButton("保存", "#607d8b");
+                Button loadGraphBtn = createStyledButton("打开", "#607d8b");
                 
-                // 图管理按钮事件
-                clearAllEdgesBtn.setOnAction(ev -> {
-                    adjGraphUI.clearAllEdges();
-                });
+                graphManagementButtons.getChildren().addAll(clearAllEdgesBtn, randomGraphBtn, saveGraphBtn, loadGraphBtn);
                 
-                randomGraphBtn.setOnAction(ev -> {
-                    adjGraphUI.generateRandomGraph();
-                });
+                // 绑定事件
+                clearAllEdgesBtn.setOnAction(ev -> adjGraphUI.clearAllEdges());
+                randomGraphBtn.setOnAction(ev -> adjGraphUI.generateRandomGraph());
+                // [关键修改] 调用 AdjListGraphUI 的新方法
+                saveGraphBtn.setOnAction(ev -> adjGraphUI.saveGraph());
+                loadGraphBtn.setOnAction(ev -> adjGraphUI.loadGraph());
 
                 adjListContent.getChildren().addAll(
                         vertexInfo,
@@ -276,49 +274,28 @@ public class MainApp extends Application {
                 bottomPane.getChildren().add(adjGraphUI.getPane());
 
                 addEdgeList.setOnAction(ev -> {
-                    int from = Integer.parseInt(fromList.getText());
-                    int to = Integer.parseInt(toList.getText());
-                    int w = Integer.parseInt(weightList.getText());
-                    adjGraphUI.addEdge(from, to, w);
+                    try {
+                        int from = Integer.parseInt(fromList.getText());
+                        int to = Integer.parseInt(toList.getText());
+                        int w = Integer.parseInt(weightList.getText());
+                        adjGraphUI.addEdge(from, to, w);
+                    } catch(NumberFormatException ex) { System.out.println("输入错误"); }
                 });
                 delEdgeList.setOnAction(ev -> {
-                    int from = Integer.parseInt(fromList.getText());
-                    int to = Integer.parseInt(toList.getText());
-                    adjGraphUI.removeEdge(from, to);
+                    try {
+                        int from = Integer.parseInt(fromList.getText());
+                        int to = Integer.parseInt(toList.getText());
+                        adjGraphUI.removeEdge(from, to);
+                    } catch(NumberFormatException ex) { System.out.println("输入错误"); }
                 });
 
-                // 算法按钮事件
-                bfsButton.setOnAction(ev -> {
-                    try {
-                        String startVertexText = startVertexField.getText();
-                        adjGraphUI.performBFS(startVertexText);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                });
-
-                dfsButton.setOnAction(ev -> {
-                    try {
-                        String startVertexText = startVertexField.getText();
-                        adjGraphUI.performDFS(startVertexText);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                });
-
-                mstButton.setOnAction(ev -> {
-                    try {
-                        adjGraphUI.performMST();
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                });
+                bfsButton.setOnAction(ev -> adjGraphUI.performBFS(startVertexField.getText()));
+                dfsButton.setOnAction(ev -> adjGraphUI.performDFS(startVertexField.getText()));
+                mstButton.setOnAction(ev -> adjGraphUI.performMST());
                 break;
-
             case "Adjacency Matrix":
                 rightTopPane.getChildren().addAll(new Label("邻接矩阵图输入:"));
 
-                // 简化邻接矩阵输入区域，只保留基本操作
                 VBox matrixContent = new VBox(8);
                 matrixContent.setPadding(new Insets(10));
                 
@@ -356,9 +333,23 @@ public class MainApp extends Application {
                 Button matrixDelEdge = new Button("删除边");
                 matrixEdgeButtons.getChildren().addAll(matrixAddEdge, matrixDelEdge);
 
+                // [关键修改] 邻接矩阵 - 图管理区域 - 加入保存和打开按钮
+                Label matrixManageLabel = new Label("图管理:");
+                matrixManageLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+                
+                HBox matrixManageButtons = new HBox(5);
+                Button matrixSaveBtn = createStyledButton("保存", "#607d8b");
+                Button matrixLoadBtn = createStyledButton("打开", "#607d8b");
+                matrixManageButtons.getChildren().addAll(matrixSaveBtn, matrixLoadBtn);
+                
+                matrixSaveBtn.setOnAction(ev -> matrixGraphUI.saveGraph());
+                matrixLoadBtn.setOnAction(ev -> matrixGraphUI.loadGraph());
+
                 matrixContent.getChildren().addAll(
                         matrixVertexInfo, matrixVertexField, matrixVertexButtons,
-                        matrixEdgeInfo, matrixFrom, matrixTo, matrixWeight, matrixEdgeButtons
+                        matrixEdgeInfo, matrixFrom, matrixTo, matrixWeight, matrixEdgeButtons,
+                        new Separator(),
+                        matrixManageLabel, matrixManageButtons
                 );
                 
                 rightTopPane.getChildren().add(matrixContent);
@@ -366,23 +357,31 @@ public class MainApp extends Application {
                 bottomPane.getChildren().add(matrixGraphUI.getPane());
 
                 matrixAddVertexBtn.setOnAction(ev -> {
-                    int id = Integer.parseInt(matrixVertexField.getText());
-                    matrixGraphUI.addVertex(id);
+                    try {
+                        int id = Integer.parseInt(matrixVertexField.getText());
+                        matrixGraphUI.addVertex(id);
+                    } catch (NumberFormatException ex) { System.out.println("输入错误"); }
                 });
                 matrixDelVertexBtn.setOnAction(ev -> {
-                    int id = Integer.parseInt(matrixVertexField.getText());
-                    matrixGraphUI.removeVertex(id);
+                    try {
+                        int id = Integer.parseInt(matrixVertexField.getText());
+                        matrixGraphUI.removeVertex(id);
+                    } catch (NumberFormatException ex) { System.out.println("输入错误"); }
                 });
                 matrixAddEdge.setOnAction(ev -> {
-                    int from = Integer.parseInt(matrixFrom.getText());
-                    int to = Integer.parseInt(matrixTo.getText());
-                    int w = Integer.parseInt(matrixWeight.getText());
-                    matrixGraphUI.addEdge(from, to, w);
+                    try {
+                        int from = Integer.parseInt(matrixFrom.getText());
+                        int to = Integer.parseInt(matrixTo.getText());
+                        int w = Integer.parseInt(matrixWeight.getText());
+                        matrixGraphUI.addEdge(from, to, w);
+                    } catch (NumberFormatException ex) { System.out.println("输入错误"); }
                 });
                 matrixDelEdge.setOnAction(ev -> {
-                    int from = Integer.parseInt(matrixFrom.getText());
-                    int to = Integer.parseInt(matrixTo.getText());
-                    matrixGraphUI.removeEdge(from, to);
+                    try {
+                        int from = Integer.parseInt(matrixFrom.getText());
+                        int to = Integer.parseInt(matrixTo.getText());
+                        matrixGraphUI.removeEdge(from, to);
+                    } catch (NumberFormatException ex) { System.out.println("输入错误"); }
                 });
                 break;
         }

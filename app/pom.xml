@@ -1,73 +1,60 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
-
-    <modelVersion>4.0.0</modelVersion>
-
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <groupId>org.example</groupId>
         <artifactId>hk</artifactId>
+        <groupId>org.example</groupId>
         <version>1.0-SNAPSHOT</version>
     </parent>
+    <modelVersion>4.0.0</modelVersion>
 
     <artifactId>app</artifactId>
-    <packaging>jar</packaging>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+    </properties>
 
     <dependencies>
-        <dependency>
-            <groupId>org.example</groupId>
-            <artifactId>core</artifactId>
-            <version>1.0-SNAPSHOT</version>
-        </dependency>
-
+        <!-- 依赖 UI 模块 -->
         <dependency>
             <groupId>org.example</groupId>
             <artifactId>ui</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
-
-        <!-- JavaFX for macOS arm64 (M1/M2/M3) -->
+        <!-- 依赖 Core 模块 -->
+        <dependency>
+            <groupId>org.example</groupId>
+            <artifactId>core</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        
+        <!-- JavaFX 依赖 -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>20</version>
-            <classifier>mac-aarch64</classifier>
         </dependency>
-
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
             <version>20</version>
-            <classifier>mac-aarch64</classifier>
-        </dependency>
-
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-graphics</artifactId>
-            <version>20</version>
-            <classifier>mac-aarch64</classifier>
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <!-- 关键修复：添加 javafx-maven-plugin -->
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
-                <version>0.0.5</version>
+                <version>0.0.8</version>
                 <configuration>
+                    <!-- 指定你的主类全名 -->
                     <mainClass>org.example.app.MainApp</mainClass>
                 </configuration>
             </plugin>
         </plugins>
     </build>
-
-    <pluginRepositories>
-        <pluginRepository>
-            <id>openjfx-plugin-repo</id>
-            <url>https://openjfx.io/maven/</url>
-        </pluginRepository>
-    </pluginRepositories>
 </project>
