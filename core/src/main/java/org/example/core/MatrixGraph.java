@@ -1,5 +1,8 @@
 package org.example.core;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class MatrixGraph extends Graph{
     private int[][] mMatrix;
     private int maxVertices;
@@ -67,13 +70,10 @@ public class MatrixGraph extends Graph{
             {
                 medge.setMto(i);
                 medge.setMweight(mMatrix[onevertex][i]);
-                break;
+                return medge; // 找到第一个边立即返回
             }
         }
-        if (medge.getMto() == 0 && mMatrix[onevertex][0] == 0) {
-            return null;
-        }
-        return medge;
+        return null; // 没有边
     }
 
 
@@ -91,22 +91,46 @@ public class MatrixGraph extends Graph{
 
     @Override
     public void setEdge(int from, int to, int weight) {
-        if(mMatrix[from][to] == 0 )
-        {
+        // 设置正向边
+        if(mMatrix[from][to] == 0 ) {
             incEdgeNumber();
             incIndegree(to);
         }
         mMatrix[from][to] = weight;
+
+        // 设置反向边 (实现无向图)
+        if (from != to) {
+            if (mMatrix[to][from] == 0) {
+                incEdgeNumber();
+                incIndegree(from);
+            }
+            mMatrix[to][from] = weight;
+        }
     }
 
     @Override
     public void delEdge(int from, int to) {
-        if(mMatrix[from][to] > 0)
-        {
+        // 删除正向边
+        if(mMatrix[from][to] > 0) {
             decEdgeNumber();
             decIndegree(to);
         }
         mMatrix[from][to] = 0;
+
+        // 删除反向边 (实现无向图)
+        if (from != to) {
+            if (mMatrix[to][from] > 0) {
+                decEdgeNumber();
+                decIndegree(from);
+            }
+            mMatrix[to][from] = 0;
+        }
+    }
+    
+    /** 覆盖基类方法，因为每条无向边实际上存储了2条有向边 */
+    @Override
+    public int edgesNumber() {
+        return super.edgesNumber() / 2;
     }
 
     @Override
@@ -165,7 +189,7 @@ public class MatrixGraph extends Graph{
         StringBuilder sb = new StringBuilder();
         
         // 收集存在的顶点ID
-        java.util.List<Integer> existingVertices = new java.util.ArrayList<>();
+        List<Integer> existingVertices = new ArrayList<>();
         for (int i = 0; i < maxVertices; i++) {
             if (vertexExists[i]) {
                 existingVertices.add(i);
@@ -214,12 +238,8 @@ public class MatrixGraph extends Graph{
             }
         }
         // 重置边数
-        while (edgesNumber() > 0) {
+        while (super.edgesNumber() > 0) {
             decEdgeNumber();
-        }
-        // 重置入度 - 通过重新初始化图来实现
-        for (int i = 0; i < n; i++) {
-            // 入度会在添加边时自动更新，清空后所有入度都为0
         }
     }
     
