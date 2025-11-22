@@ -1,4 +1,3 @@
-// vmArgs = --module-path /Users/yuyongwenshu/.m2/repository/org/openjfx/javafx-base/20/javafx-base-20.jar:/Users/yuyongwenshu/.m2/repository/org/openjfx/javafx-controls/20/javafx-controls-20.jar:/Users/yuyongwenshu/.m2/repository/org/openjfx/javafx-graphics/20/javafx-graphics-20.jar:/Users/yuyongwenshu/.m2/repository/org/openjfx/javafx-fxml/20/javafx-fxml-20.jar --add-modules javafx.controls,javafx.fxml,javafx.graphics
 package org.example.app;
 
 import javafx.application.Application;
@@ -223,6 +222,15 @@ public class MainApp extends Application {
                 Button loadGraphBtn = createStyledButton("打开", "#607d8b");
                 graphManagementButtons.getChildren().addAll(clearAllEdgesBtn, randomGraphBtn, saveGraphBtn, loadGraphBtn);
                 
+                // --- DSL 自动化绘制 ---
+                Label dslLabel = new Label("DSL 自动化绘图:");
+                dslLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
+                TextArea dslArea = new TextArea();
+                dslArea.setPromptText("输入图描述 (例如: 0 -> 1 : 5)");
+                dslArea.setPrefHeight(80);
+                dslArea.setWrapText(true);
+                Button renderDslBtn = createStyledButton("渲染 DSL", "#009688");
+                
                 // --- 算法控制 ---
                 Label algoLabel = new Label("算法与路径:");
                 algoLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
@@ -241,15 +249,18 @@ public class MainApp extends Application {
                 algoButtons.getChildren().addAll(bfsButton, dfsButton, mstButton, dijkstraButton);
 
                 // 绑定事件
-                clearAllEdgesBtn.setOnAction(ev -> adjGraphUI.clearAllEdges());
+                clearAllEdgesBtn.setOnAction(ev -> adjGraphUI.resetToDefault());
                 randomGraphBtn.setOnAction(ev -> adjGraphUI.generateRandomGraph());
                 saveGraphBtn.setOnAction(ev -> adjGraphUI.saveGraph());
                 loadGraphBtn.setOnAction(ev -> adjGraphUI.loadGraph());
+                renderDslBtn.setOnAction(ev -> adjGraphUI.renderFromDSL(dslArea.getText()));
 
                 adjListContent.getChildren().addAll(
                         new Label("边编辑:"), edgeInputs, edgeButtons,
                         new Separator(),
                         graphManageLabel, graphManagementButtons,
+                        new Separator(),
+                        dslLabel, dslArea, renderDslBtn,
                         new Separator(),
                         algoLabel, pathInputs, algoButtons
                 );
@@ -304,12 +315,27 @@ public class MainApp extends Application {
                 mEdgeOps.getChildren().addAll(matrixAddEdge, matrixDelEdge);
 
                 // --- 图管理 ---
+                Label mGraphManageLabel = new Label("图管理:");
+                mGraphManageLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
                 HBox mManageBtns = new HBox(5);
+                Button matrixClearBtn = createStyledButton("清空", "#f44336"); // 新增清空按钮
+                Button matrixRandomBtn = createStyledButton("随机", "#9c27b0"); // 新增随机按钮
                 Button matrixSaveBtn = createStyledButton("保存", "#607d8b");
                 Button matrixLoadBtn = createStyledButton("打开", "#607d8b");
-                mManageBtns.getChildren().addAll(matrixSaveBtn, matrixLoadBtn);
+                mManageBtns.getChildren().addAll(matrixClearBtn, matrixRandomBtn, matrixSaveBtn, matrixLoadBtn);
+                
+                // --- DSL 自动化绘制 (矩阵版) ---
+                Label mDslLabel = new Label("DSL 自动化绘图:");
+                mDslLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
+                TextArea mDslArea = new TextArea();
+                mDslArea.setPromptText("0 -> 1 : 5\n1 -> 2");
+                mDslArea.setPrefHeight(80);
+                mDslArea.setWrapText(true);
+                Button mRenderDslBtn = createStyledButton("渲染 DSL", "#009688");
                 
                 // --- 算法 ---
+                Label mAlgoLabel = new Label("算法:");
+                mAlgoLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
                 HBox mPathInputs = new HBox(5);
                 TextField mStartField = new TextField(); mStartField.setPromptText("起点"); mStartField.setPrefWidth(80);
                 TextField mEndField = new TextField(); mEndField.setPromptText("终点(最短路)"); mEndField.setPrefWidth(100);
@@ -319,16 +345,22 @@ public class MainApp extends Application {
                 Button matrixDijkstraBtn = createStyledButton("Dijkstra最短路", "#e91e63");
                 
                 // 绑定事件
+                // [修改] 调用 resetToDefault 实现一键恢复
+                matrixClearBtn.setOnAction(ev -> matrixGraphUI.resetToDefault());
+                matrixRandomBtn.setOnAction(ev -> matrixGraphUI.generateRandomGraph()); // 绑定随机事件
                 matrixSaveBtn.setOnAction(ev -> matrixGraphUI.saveGraph());
                 matrixLoadBtn.setOnAction(ev -> matrixGraphUI.loadGraph());
+                mRenderDslBtn.setOnAction(ev -> matrixGraphUI.renderFromDSL(mDslArea.getText()));
                 matrixDijkstraBtn.setOnAction(ev -> matrixGraphUI.performDijkstra(mStartField.getText(), mEndField.getText()));
 
                 matrixContent.getChildren().addAll(
                         new Label("结构编辑:"), mVertexOps, mEdgeInputs, mEdgeOps,
                         new Separator(),
-                        new Label("管理:"), mManageBtns,
+                        mGraphManageLabel, mManageBtns,
                         new Separator(),
-                        new Label("算法:"), mPathInputs, matrixDijkstraBtn
+                        mDslLabel, mDslArea, mRenderDslBtn,
+                        new Separator(),
+                        mAlgoLabel, mPathInputs, matrixDijkstraBtn
                 );
                 
                 rightTopPane.getChildren().add(matrixContent);
@@ -407,6 +439,7 @@ public class MainApp extends Application {
             case "#9c27b0": return "#7b1fa2"; // 紫色加深
             case "#607d8b": return "#455a64"; // 蓝灰加深
             case "#e91e63": return "#c2185b"; // 粉色加深
+            case "#009688": return "#00796b"; // 青色加深
             default: return color;
         }
     }
