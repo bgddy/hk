@@ -69,10 +69,14 @@ public class AdjListGraphUI {
         zoomControls.setAlignment(Pos.CENTER);
         zoomControls.setPadding(new Insets(20));
         zoomControls.setPickOnBounds(false);
+        // 【关键修改】设置最大尺寸为首选尺寸，防止 VBox 被 StackPane 拉伸填满整个区域
+        zoomControls.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         
         StackPane centerStack = new StackPane();
         centerStack.getChildren().addAll(graphScrollPane, zoomControls);
-        StackPane.setAlignment(zoomControls, Pos.BOTTOM_RIGHT);
+        
+        // 将按钮固定在右上角
+        StackPane.setAlignment(zoomControls, Pos.TOP_RIGHT);
 
         VBox rightPane = new VBox(10);
         rightPane.setPadding(new Insets(0, 0, 0, 5));
@@ -234,10 +238,13 @@ public class AdjListGraphUI {
         }
     }
 
-    // 其他方法保持不变，但需包含 resetToDefault 等逻辑
     public void renderFromDSL(String dslText) {
         if (dslText == null || dslText.trim().isEmpty()) return;
-        clearInternalGraphState();
+        
+        this.graph = new AdjListGraph(5);
+        clearInternalGraphState(); 
+        for (int i = 0; i < 5; i++) addVertexUIOnly(i);
+
         String[] lines = dslText.split("\n");
         List<int[]> edgesToAdd = new ArrayList<>();
         for (String line : lines) {
@@ -254,7 +261,10 @@ public class AdjListGraphUI {
                         v = Integer.parseInt(vw[0].trim());
                         w = Integer.parseInt(vw[1].trim());
                     } else { v = Integer.parseInt(rightPart); }
-                    while (graph.verticesNumber() <= Math.max(u, v)) { graph.addVertex(); }
+                    
+                    while (graph.verticesNumber() <= Math.max(u, v)) { 
+                        graph.addVertex(); 
+                    }
                     addVertexUIOnly(u); addVertexUIOnly(v);
                     edgesToAdd.add(new int[]{u, v, w});
                 } catch (Exception e) { System.out.println("DSL 解析错误: " + line); }
@@ -267,6 +277,7 @@ public class AdjListGraphUI {
     }
 
     public void resetToDefault() {
+        this.graph = new AdjListGraph(5);
         clearInternalGraphState();
         for (int i = 0; i < 5; i++) { addVertexUIOnly(i); }
         updateNodePositions();
@@ -277,7 +288,7 @@ public class AdjListGraphUI {
     private void clearInternalGraphState() {
         stopAnimation();
         resetStyles();
-        graph.clearAllEdges();
+        graph.clearAllEdges(); 
         nodes.clear();
         nodeLabels.clear();
         graphPane.getChildren().clear();

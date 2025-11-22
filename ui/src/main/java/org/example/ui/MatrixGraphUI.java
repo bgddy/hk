@@ -75,13 +75,18 @@ public class MatrixGraphUI {
         
         VBox zoomControls = new VBox(10, zoomInBtn, zoomOutBtn);
         zoomControls.setAlignment(Pos.CENTER);
+        // 设置 padding，让按钮离边缘有一点距离
         zoomControls.setPadding(new Insets(20));
         zoomControls.setPickOnBounds(false);
+        // 【关键修改】限制最大尺寸为首选尺寸，防止被 StackPane 拉伸
+        zoomControls.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
         
         // 使用 StackPane 将缩放控件叠加在 ScrollPane 上
         StackPane centerStack = new StackPane();
         centerStack.getChildren().addAll(graphScrollPane, zoomControls);
-        StackPane.setAlignment(zoomControls, Pos.BOTTOM_RIGHT);
+        
+        // 将按钮移动到右上角
+        StackPane.setAlignment(zoomControls, Pos.TOP_RIGHT);
 
         // ================== 右侧：数据与日志 ==================
         VBox matrixPane = new VBox(10);

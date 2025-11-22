@@ -21,18 +21,28 @@ public class BFS {
     public void traverseFromVertex(int startVertex) {
         traversalOrder.clear();
         steps.clear();
+        // 重置访问状态
         for(int i = 0; i< visited.length; i++) visited[i] = false;
-        if (startVertex >= 0 && startVertex < graph.verticesNumber()) {
+        
+        int numVertices = graph.verticesNumber();
+        
+        // 1. 先从用户指定的起点开始遍历 (如果合法)
+        if (startVertex >= 0 && startVertex < numVertices) {
             broadFirstSearch(startVertex);
+        }
+        
+        // 2. [核心修改] 检查是否还有未访问的孤立节点/连通分量
+        for (int i = 0; i < numVertices; i++) {
+            if (!visited[i]) {
+                // 发现新的未访问节点，说明是另一个连通分量
+                broadFirstSearch(i);
+            }
         }
     }
 
     public void broadFirstSearch(int startV) {
          visited[startV] = true;
          queue.add(startV);
-         
-         // 记录: 初始节点入队
-         // steps.add(new TraversalStep(TraversalStep.Type.VISIT, startV));
          
          while(!queue.isEmpty()) {
              int u = queue.poll();

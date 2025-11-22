@@ -17,20 +17,17 @@
     </properties>
 
     <dependencies>
-        <!-- 依赖 UI 模块 -->
         <dependency>
             <groupId>org.example</groupId>
             <artifactId>ui</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
-        <!-- 依赖 Core 模块 -->
         <dependency>
             <groupId>org.example</groupId>
             <artifactId>core</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
         
-        <!-- JavaFX 依赖 -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
@@ -41,17 +38,21 @@
             <artifactId>javafx-fxml</artifactId>
             <version>20</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.10.1</version>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
-            <!-- 关键修复：添加 javafx-maven-plugin -->
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
                 <version>0.0.8</version>
                 <configuration>
-                    <!-- 指定你的主类全名 -->
                     <mainClass>org.example.app.MainApp</mainClass>
                 </configuration>
             </plugin>
