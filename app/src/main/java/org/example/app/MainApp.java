@@ -29,6 +29,9 @@ public class MainApp extends Application {
     private SelectionSortUI selectionSortUI;
     private InsertSortUI insertSortUI;
     private FastSortUI fastSortUI;
+    
+    // 新增：排序竞技场UI
+    private SortingRaceUI sortingRaceUI;
 
     @Override
     public void start(Stage primaryStage) {
@@ -75,6 +78,7 @@ public class MainApp extends Application {
         typeSelector = new ComboBox<>();
         typeSelector.getItems().addAll(
                 "Selection Sort", "Insertion Sort", "Quick Sort",
+                "Sorting Race", // 新增选项
                 "Adjacency Matrix", "Adjacency List"
         );
         typeSelector.setValue("Selection Sort");
@@ -200,8 +204,11 @@ public class MainApp extends Application {
 
         HBox controlPanel = null;
         
-        if (type.contains("Sort")) {
+        // 修改判断条件，包含 Sorting Race
+        if (type.contains("Sort") || type.contains("Race")) {
             Button autoPlayBtn = createStyledButton("自动播放", "#4caf50");
+            if (type.contains("Race")) autoPlayBtn.setText("开始竞速"); // 竞速模式特殊文字
+
             Button nextStepBtn = createStyledButton("下一步", "#2196f3");
             Button resetBtn = createStyledButton("重置", "#ff9800");
             Button pauseBtn = createStyledButton("暂停", "#f44336");
@@ -227,6 +234,21 @@ public class MainApp extends Application {
                 nextStepBtn.setOnAction(ev -> fastSortUI.nextStep());
                 resetBtn.setOnAction(ev -> fastSortUI.reset());
                 pauseBtn.setOnAction(ev -> fastSortUI.pause());
+            } else if (type.equals("Sorting Race")) {
+                // 竞速模式的逻辑绑定
+                if (sortingRaceUI == null) {
+                    sortingRaceUI = new SortingRaceUI();
+                }
+                
+                // 添加竞速模式特有的“生成新数据”按钮
+                Button newDataBtn = createStyledButton("换一组数据", "#9c27b0");
+                newDataBtn.setOnAction(ev -> sortingRaceUI.generateNewData(100));
+                controlPanel.getChildren().add(newDataBtn); // 添加到控制面板末尾
+
+                autoPlayBtn.setOnAction(ev -> sortingRaceUI.startRace());
+                nextStepBtn.setOnAction(ev -> sortingRaceUI.nextStep());
+                resetBtn.setOnAction(ev -> sortingRaceUI.resetRace());
+                pauseBtn.setOnAction(ev -> sortingRaceUI.pauseRace());
             }
         }
 
@@ -261,7 +283,32 @@ public class MainApp extends Application {
                     container.getChildren().add(finalControlPanel);
                 });
                 break;
-
+            
+            // 新增：竞速模式
+            case "Sorting Race":
+                if (sortingRaceUI == null) {
+                    sortingRaceUI = new SortingRaceUI();
+                }
+                
+                // 1. 清空并设置中间区域
+                bottomPane.getChildren().clear();
+                HBox raceRoot = sortingRaceUI.getRoot(); // 获取新的 HBox 根节点
+                
+                // 绑定宽度和高度，让它填满区域
+                raceRoot.prefWidthProperty().bind(bottomPane.widthProperty());
+                raceRoot.prefHeightProperty().bind(bottomPane.heightProperty());
+                
+                bottomPane.getChildren().add(raceRoot);
+                
+                // 2. 清空顶部中间区域（不再需要计分板占位，因为计分板已经集成在赛道里了）
+                rightTopPane.getChildren().clear(); 
+                rightTopPane.getChildren().add(new Label("🏆 算法竞速模式 - 实时监控中")); // 可以放个简单标题
+                
+                // 3. 设置底部控制按钮
+                VBox container = (VBox) bottomPane.getParent();
+                container.getChildren().removeIf(node -> node instanceof HBox);
+                container.getChildren().add(controlPanel);
+                break;
             case "Adjacency List":
                 buildGraphControlPanel("邻接表", adjGraphUI, rightTopPane);
                 bottomPane.getChildren().add(adjGraphUI.getPane());
@@ -345,13 +392,11 @@ public class MainApp extends Application {
     private void buildMatrixControlPanel(String title, MatrixGraphUI ui, VBox pane) {
         pane.getChildren().add(new Label(title + "操作:"));
         
-        // 【新增】顶点操作
         HBox vertexInputs = new HBox(5);
         TextField vertexIdT = new TextField(); vertexIdT.setPromptText("ID"); vertexIdT.setPrefWidth(50);
         Button addVBtn = new Button("+顶点"), delVBtn = new Button("-顶点");
         vertexInputs.getChildren().addAll(vertexIdT, addVBtn, delVBtn);
 
-        // 边编辑
         HBox edgeInputs = new HBox(5);
         TextField fromT = new TextField(); fromT.setPromptText("From"); fromT.setPrefWidth(50);
         TextField toT = new TextField(); toT.setPromptText("To"); toT.setPrefWidth(50);
@@ -359,7 +404,6 @@ public class MainApp extends Application {
         Button addBtn = new Button("加"), delBtn = new Button("删");
         edgeInputs.getChildren().addAll(fromT, toT, wT, addBtn, delBtn);
         
-        // 图管理
         HBox mManageBtns = new HBox(5);
         Button matrixClearBtn = createStyledButton("清空", "#f44336");
         Button matrixRandomBtn = createStyledButton("随机", "#9c27b0");
@@ -367,20 +411,17 @@ public class MainApp extends Application {
         Button matrixLoadBtn = createStyledButton("打开", "#607d8b");
         mManageBtns.getChildren().addAll(matrixClearBtn, matrixRandomBtn, matrixSaveBtn, matrixLoadBtn);
 
-        // 算法
         HBox algoBox = new HBox(5);
         TextField startT = new TextField(); startT.setPromptText("Start"); startT.setPrefWidth(50);
         TextField endT = new TextField(); endT.setPromptText("End"); endT.setPrefWidth(50);
         Button dijBtn = createStyledButton("Dijkstra最短路", "#e91e63");
         algoBox.getChildren().addAll(startT, endT, dijBtn);
 
-        // DSL
         TextArea mDslArea = new TextArea();
         mDslArea.setPromptText("手动输入 DSL...");
         mDslArea.setPrefHeight(60);
         Button mRenderDslBtn = createStyledButton("渲染 DSL", "#009688");
 
-        // 事件绑定 - 顶点
         addVBtn.setOnAction(e -> {
             try { ui.addVertex(Integer.parseInt(vertexIdT.getText())); } catch(Exception ex){}
         });
@@ -388,7 +429,6 @@ public class MainApp extends Application {
             try { ui.removeVertex(Integer.parseInt(vertexIdT.getText())); } catch(Exception ex){}
         });
 
-        // 事件绑定 - 边
         addBtn.setOnAction(e -> {
             try { ui.addEdge(Integer.parseInt(fromT.getText()), Integer.parseInt(toT.getText()), Integer.parseInt(wT.getText())); } 
             catch(Exception ex){} 

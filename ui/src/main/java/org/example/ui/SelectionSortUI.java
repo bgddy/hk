@@ -1,9 +1,6 @@
 package org.example.ui;
 
-import javafx.animation.KeyFrame;
-import javafx.animation.KeyValue;
-import javafx.animation.Timeline;
-import javafx.application.Platform;
+import javafx.animation.*;
 import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
@@ -14,15 +11,13 @@ public class SelectionSortUI extends ControllableSortUI {
 
     private int[] originalData;
     private int[][] steps;
-    private Timeline currentAnimation;
-    private long stepDelay = 500;
+    private SequentialTransition animation;
 
     public SelectionSortUI(int[] data) {
         this.originalData = data.clone();
         this.root = new HBox(SPACING);
         initBars(data);
         
-        // 生成排序步骤
         SelectionSort sorter = new SelectionSort();
         this.steps = sorter.sort(data);
     }
@@ -39,108 +34,118 @@ public class SelectionSortUI extends ControllableSortUI {
         }
     }
 
-    public HBox getRoot() {
-        return root;
-    }
+    public HBox getRoot() { return root; }
 
     @Override
     public void visualizeSteps(long stepDelay) {
-        this.stepDelay = stepDelay;
-        isPlaying = true;
-        currentStep = 0;
+        if (animation != null) animation.stop();
         
-        new Thread(() -> {
-            try {
-                while (currentStep < steps.length && isPlaying) {
-                    final int stepIndex = currentStep;
-                    final int[] step = steps[stepIndex];
-                    int minIndex = findMinIndex(step, stepIndex);
-                    
-                    Platform.runLater(() -> animateStep(stepIndex, minIndex, step));
-                    Thread.sleep(stepDelay);
-                    
-                    currentStep++;
+        this.isPlaying = true;
+        this.currentStep = 0;
+        
+        animation = new SequentialTransition();
+        
+        // 只有在慢速模式下（延迟大于50ms）才启用华丽的交换动画
+        boolean enableSwapAnim = stepDelay > 50;
+
+        // 初始状态
+        int[] prevArray = originalData.clone();
+
+        for (int i = 0; i < steps.length; i++) {
+            final int stepIndex = i;
+            final int[] currentArray = steps[i];
+            
+            // 1. 寻找发生了交换的两个索引
+            int swapIdx1 = -1, swapIdx2 = -1;
+            if (enableSwapAnim) {
+                for (int k = 0; k < currentArray.length; k++) {
+                    if (currentArray[k] != prevArray[k]) {
+                        if (swapIdx1 == -1) swapIdx1 = k;
+                        else if (swapIdx2 == -1) swapIdx2 = k;
+                    }
                 }
-                isPlaying = false;
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-                isPlaying = false;
             }
-        }).start();
+            
+            // 更新 prevArray 为当前状态，供下一轮对比
+            prevArray = currentArray.clone();
+
+            if (enableSwapAnim && swapIdx1 != -1 && swapIdx2 != -1) {
+                // === 慢速模式：创建物理交换动画 ===
+                final int u = swapIdx1;
+                final int v = swapIdx2;
+                
+                // 计算物理距离
+                double dist = (v - u) * (BAR_WIDTH + SPACING);
+                
+                // 创建并行动画：两个柱子互换位置
+                Timeline swapAnim = new Timeline(
+                    new KeyFrame(Duration.ZERO, e -> {
+                        // 开始前先高亮
+                        bars[u].setFill(Color.RED);
+                        bars[v].setFill(Color.PURPLE);
+                    }),
+                    new KeyFrame(Duration.millis(stepDelay), 
+                        new KeyValue(bars[u].translateXProperty(), dist),
+                        new KeyValue(bars[v].translateXProperty(), -dist)
+                    )
+                );
+                
+                // 动画结束后，逻辑上更新高度并归位
+                Timeline cleanup = new Timeline(new KeyFrame(Duration.ONE, e -> {
+                    updateBarsInstant(currentArray); // 瞬移更新高度
+                    // 归位X轴（因为高度已经交换了）
+                    bars[u].setTranslateX(0);
+                    bars[v].setTranslateX(0);
+                }));
+                
+                animation.getChildren().addAll(swapAnim, cleanup);
+                
+            } else {
+                // === 竞速模式 或 无交换步骤：直接更新 ===
+                Timeline simpleUpdate = new Timeline(new KeyFrame(Duration.millis(stepDelay), e -> {
+                    updateBarsInstant(currentArray);
+                    currentStep = stepIndex + 1;
+                }));
+                animation.getChildren().add(simpleUpdate);
+            }
+        }
+
+        animation.setOnFinished(e -> {
+            isPlaying = false;
+            currentStep = steps.length;
+            for(Rectangle r : bars) r.setFill(Color.LIGHTGREEN); // 完成后变绿
+        });
+        
+        animation.play();
+    }
+
+    // 瞬间更新所有柱子高度
+    private void updateBarsInstant(int[] arr) {
+        for (int k = 0; k < bars.length; k++) {
+            double height = arr[k] * SCALE;
+            bars[k].setHeight(height);
+            bars[k].setTranslateY(BASELINE - height);
+            bars[k].setTranslateX(0);
+            bars[k].setFill(Color.LIGHTGREEN);
+        }
     }
 
     @Override
     public void nextStep() {
         if (currentStep < steps.length) {
-            int[] step = steps[currentStep];
-            int minIndex = findMinIndex(step, currentStep);
-            animateStep(currentStep, minIndex, step);
+            updateBarsInstant(steps[currentStep]);
             currentStep++;
         }
     }
 
     @Override
     public void reset() {
-        // 停止当前动画
-        if (currentAnimation != null) {
-            currentAnimation.stop();
-        }
+        if (animation != null) animation.stop();
         isPlaying = false;
         currentStep = 0;
-        
-        // 重置到初始状态
         initBars(originalData);
     }
 
     @Override
-    public int getTotalSteps() {
-        return steps.length;
-    }
-
-    private int findMinIndex(int[] array, int start) {
-        int minIdx = start;
-        for (int i = start + 1; i < array.length; i++) {
-            if (array[i] < array[minIdx]) minIdx = i;
-        }
-        return minIdx;
-    }
-
-    private void animateStep(int i, int minIdx, int[] array) {
-        for (Rectangle bar : bars) bar.setFill(Color.LIGHTGREEN);
-
-        bars[i].setFill(Color.PURPLE);
-        bars[minIdx].setFill(Color.RED);
-
-        if (i != minIdx) {
-            Rectangle r1 = bars[i];
-            Rectangle r2 = bars[minIdx];
-            double distance = (minIdx - i) * (BAR_WIDTH + SPACING);
-
-            Timeline timeline = new Timeline(
-                    new KeyFrame(Duration.seconds(10),
-                            new KeyValue(r1.translateXProperty(), distance),
-                            new KeyValue(r2.translateXProperty(), -distance)
-                    )
-            );
-
-            timeline.setOnFinished(e -> {
-                bars[i] = r2;
-                bars[minIdx] = r1;
-                r1.setTranslateX(0);
-                r2.setTranslateX(0);
-                for (int k = 0; k < array.length; k++) {
-                    double height = array[k] * SCALE;
-                    bars[k].setHeight(height);
-                    bars[k].setTranslateY(BASELINE - height);
-                }
-            });
-            timeline.play();
-        } else {
-            for (int k = 0; k < array.length; k++) {
-                double height = array[k] * SCALE;
-                bars[k].setHeight(height);
-                bars[k].setTranslateY(BASELINE - height);
-            }
-        }
-    }
+    public int getTotalSteps() { return steps.length; }
 }

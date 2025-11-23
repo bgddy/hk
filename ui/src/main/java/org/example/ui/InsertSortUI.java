@@ -12,14 +12,12 @@ public class InsertSortUI extends ControllableSortUI {
     private int[] originalData;
     private int[][] steps;
     private SequentialTransition animation;
-    private long stepDelay = 500;
 
     public InsertSortUI(int[] data) {
         this.originalData = data.clone();
         this.root = new HBox(SPACING);
         this.bars = new Rectangle[data.length];
         
-        // 初始化柱状图
         for (int i = 0; i < data.length; i++) {
             double height = data[i] * SCALE;
             Rectangle rect = new Rectangle(BAR_WIDTH, height, Color.LIGHTGREEN);
@@ -28,75 +26,102 @@ public class InsertSortUI extends ControllableSortUI {
             root.getChildren().add(rect);
         }
         
-        // 生成排序步骤
         InsertSort sorter = new InsertSort();
         this.steps = sorter.sort(data);
     }
 
-    public HBox getRoot() {
-        return root;
-    }
+    public HBox getRoot() { return root; }
 
     @Override
     public void visualizeSteps(long stepDelay) {
-        this.stepDelay = stepDelay;
-        isPlaying = true;
-        currentStep = 0;
+        if (animation != null) animation.stop();
         
-        // 创建新的动画序列
+        this.isPlaying = true;
+        this.currentStep = 0;
+        
         animation = new SequentialTransition();
-        
-        for (int stepIndex = 1; stepIndex < steps.length; stepIndex++) {
-            final int stepIndexFinal = stepIndex;
-            final int[] curr = steps[stepIndex].clone();
+        boolean enableSmoothAnim = stepDelay > 50;
+
+        int[] prevArray = originalData.clone();
+
+        for (int i = 0; i < steps.length; i++) {
+            final int stepIndex = i;
+            final int[] curr = steps[i];
+            final int[] prev = prevArray; // 捕获上一步状态
             
-            Timeline highlight = new Timeline(
-                    new KeyFrame(Duration.ZERO, e -> {
-                        highlightInsert(stepIndexFinal);
-                        currentStep = stepIndexFinal;
-                    }),
-                    new KeyFrame(Duration.millis(500))
-            );
-            PauseTransition pause = new PauseTransition(Duration.millis(stepDelay));
-            Timeline update = new Timeline(
-                    new KeyFrame(Duration.millis(stepDelay), e -> updateBars(curr))
-            );
-            animation.getChildren().addAll(highlight, pause, update);
+            if (enableSmoothAnim) {
+                // === 慢速模式：平滑变形动画 ===
+                ParallelTransition morphing = new ParallelTransition();
+                
+                for (int k = 0; k < curr.length; k++) {
+                    double newHeight = curr[k] * SCALE;
+                    Rectangle bar = bars[k];
+                    
+                    // 只有发生变化的柱子才会有颜色和高度动画
+                    if (curr[k] != prev[k]) {
+                        // 正在移动的元素标为橙色
+                        Timeline t = new Timeline(
+                            new KeyFrame(Duration.ZERO, e -> bar.setFill(Color.ORANGE)),
+                            new KeyFrame(Duration.millis(stepDelay), 
+                                new KeyValue(bar.heightProperty(), newHeight, Interpolator.EASE_BOTH),
+                                new KeyValue(bar.translateYProperty(), BASELINE - newHeight, Interpolator.EASE_BOTH)
+                            )
+                        );
+                        morphing.getChildren().add(t);
+                    } else {
+                        // 未变化的保持绿色（或恢复绿色）
+                        Timeline t = new Timeline(new KeyFrame(Duration.ZERO, e -> bar.setFill(Color.LIGHTGREEN)));
+                        morphing.getChildren().add(t);
+                    }
+                }
+                // 记录当前步数
+                morphing.setOnFinished(e -> currentStep = stepIndex + 1);
+                animation.getChildren().add(morphing);
+                
+            } else {
+                // === 竞速模式：瞬移 ===
+                Timeline quickUpdate = new Timeline(new KeyFrame(Duration.millis(stepDelay), e -> {
+                    updateBarsInstant(curr);
+                    currentStep = stepIndex + 1;
+                }));
+                animation.getChildren().add(quickUpdate);
+            }
+            
+            prevArray = curr; // 更新上一步状态
         }
 
         animation.setOnFinished(e -> {
             isPlaying = false;
             currentStep = steps.length;
+            for(Rectangle r : bars) r.setFill(Color.LIGHTGREEN);
         });
         
         animation.play();
     }
 
+    private void updateBarsInstant(int[] curr) {
+        for (int i = 0; i < curr.length; i++) {
+            double newHeight = curr[i] * SCALE;
+            bars[i].setHeight(newHeight);
+            bars[i].setTranslateY(BASELINE - newHeight);
+            bars[i].setFill(Color.LIGHTGREEN);
+        }
+    }
+
     @Override
     public void nextStep() {
         if (currentStep < steps.length) {
-            if (currentStep == 0) {
-                // 第一步特殊处理
-                highlightInsert(1);
-                updateBars(steps[1]);
-            } else if (currentStep < steps.length - 1) {
-                highlightInsert(currentStep + 1);
-                updateBars(steps[currentStep + 1]);
-            }
+            updateBarsInstant(steps[currentStep]);
             currentStep++;
         }
     }
 
     @Override
     public void reset() {
-        // 停止当前动画
-        if (animation != null) {
-            animation.stop();
-        }
+        if (animation != null) animation.stop();
         isPlaying = false;
         currentStep = 0;
         
-        // 重置到初始状态
         for (int i = 0; i < originalData.length; i++) {
             double height = originalData[i] * SCALE;
             bars[i].setHeight(height);
@@ -106,42 +131,5 @@ public class InsertSortUI extends ControllableSortUI {
     }
 
     @Override
-    public int getTotalSteps() {
-        return steps.length;
-    }
-
-    private void highlightInsert(int index) {
-        for (int i = 0; i < bars.length; i++) {
-            if (i == index)
-                bars[i].setFill(Color.GOLD); // 当前插入元素金色
-            else if (i < index)
-                bars[i].setFill(Color.SALMON); // 左侧有序部分红色
-            else
-                bars[i].setFill(Color.LIGHTGREEN); // 未排序区绿色
-        }
-    }
-
-    private void updateBars(int[] curr) {
-        ParallelTransition pt = new ParallelTransition();
-
-        for (int i = 0; i < curr.length; i++) {
-            double newHeight = curr[i] * SCALE;
-            Rectangle bar = bars[i];
-
-            Timeline anim = new Timeline(
-                    new KeyFrame(Duration.seconds(0.5),
-                            new KeyValue(bar.heightProperty(), newHeight, Interpolator.EASE_BOTH),
-                            new KeyValue(bar.translateYProperty(), BASELINE - newHeight, Interpolator.EASE_BOTH)
-                    )
-            );
-            pt.getChildren().add(anim);
-        }
-
-        pt.setOnFinished(e -> {
-            for (Rectangle bar : bars)
-                bar.setFill(Color.LIGHTGREEN);
-        });
-
-        pt.play();
-    }
+    public int getTotalSteps() { return steps.length; }
 }
