@@ -3,7 +3,7 @@ package org.example.ui;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
-import javafx.application.Platform; // 必须导入
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
@@ -24,6 +24,7 @@ public class AdjListGraphUI {
 
     private BorderPane root;
     private Pane graphPane;
+    private ScrollPane graphScrollPane;
     private Text adjListDisplay;
     private ListView<String> codeListView;
     private AdjListGraph graph;
@@ -47,19 +48,17 @@ public class AdjListGraphUI {
         root = new BorderPane();
         root.setPrefSize(1100, 650);
         
-        // ==================== 中间：绘图区域 ====================
+        // 中间：绘图区域
         graphPane = new Pane();
-        graphPane.setPrefSize(2000, 2000); // 画布很大
+        graphPane.setPrefSize(2000, 2000); 
         graphPane.setStyle("-fx-background-color: #f8f9fa;");
         
-        // 【关键修复1】移除 Group，直接放入 ScrollPane
-        ScrollPane graphScrollPane = new ScrollPane(graphPane);
+        graphScrollPane = new ScrollPane(graphPane);
         graphScrollPane.setPannable(true);
-        graphScrollPane.setFitToWidth(false); // 允许内容超过视口
+        graphScrollPane.setFitToWidth(false); 
         graphScrollPane.setFitToHeight(false);
         graphScrollPane.setStyle("-fx-background-color: transparent; -fx-border-color: #dee2e6; -fx-border-width: 1;");
         
-        // 缩放按钮
         Button zoomInBtn = createZoomButton("放大", 1.2);
         Button zoomOutBtn = createZoomButton("缩小", 0.8);
         VBox zoomControls = new VBox(10, zoomInBtn, zoomOutBtn);
@@ -72,7 +71,7 @@ public class AdjListGraphUI {
         centerStack.getChildren().addAll(graphScrollPane, zoomControls);
         StackPane.setAlignment(zoomControls, Pos.TOP_RIGHT);
 
-        // ==================== 右侧：垂直分割面板 ====================
+        // 右侧：垂直分割面板
         VBox dataContainer = new VBox(5);
         dataContainer.setPadding(new Insets(10));
         dataContainer.setStyle("-fx-background-color: #ffffff;");
@@ -131,20 +130,19 @@ public class AdjListGraphUI {
         root.setCenter(centerStack);
         root.setRight(rightSplitPane);
         
-        // 初始化图
         for (int i = 0; i < 5; i++) addVertexUIOnly(i);
         updateAdjListDisplay();
         setCode(new String[]{"// 等待算法运行...", "// 代码将在此显示"});
 
-        // 【关键修复2】延迟执行滚动条居中，确保布局计算完成后再跳转
+        centerContent();
+    }
+    
+    public void centerContent() {
         Platform.runLater(() -> {
             graphScrollPane.setHvalue(0.5);
             graphScrollPane.setVvalue(0.5);
         });
     }
-    
-    // ... [中间的方法保持不变] ... 
-    // 为了节省篇幅，我保留了所有逻辑方法，请确保 resetStyles 在类里面
 
     private void setCode(String[] lines) {
         codeListView.getItems().clear();
@@ -180,6 +178,7 @@ public class AdjListGraphUI {
 
     public BorderPane getPane() { return root; }
 
+    // 算法相关方法保持不变
     public void performBFS(String startVertexText) {
         stopAnimation();
         resetStyles();
@@ -295,11 +294,13 @@ public class AdjListGraphUI {
         }
     }
 
+    // 核心功能：DSL 渲染
     public void renderFromDSL(String dslText) {
         if (dslText == null || dslText.trim().isEmpty()) return;
         this.graph = new AdjListGraph(5);
         clearInternalGraphState(); 
         for (int i = 0; i < 5; i++) addVertexUIOnly(i);
+        
         String[] lines = dslText.split("\n");
         List<int[]> edgesToAdd = new ArrayList<>();
         for (String line : lines) {
@@ -334,11 +335,7 @@ public class AdjListGraphUI {
         updateNodePositions();
         updateAdjListDisplay();
         setCode(new String[]{"// 准备就绪"});
-        // 重置时也居中一下
-        Platform.runLater(() -> {
-            ScrollPane sp = (ScrollPane) ((StackPane)root.getCenter()).getChildren().get(0);
-            sp.setHvalue(0.5); sp.setVvalue(0.5);
-        });
+        centerContent();
     }
 
     private void clearInternalGraphState() {
@@ -351,48 +348,59 @@ public class AdjListGraphUI {
         edges.clear();
     }
 
+    // 【修改】保存为 DSL 格式 (.txt)
     public void saveGraph() {
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("保存图");
-        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Graph Files", "*.graph"));
+        fileChooser.setTitle("保存图 (DSL)");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Text Files", "*.txt"));
+        fileChooser.setInitialFileName("graph_dsl.txt");
         File file = fileChooser.showSaveDialog(root.getScene().getWindow());
+        
         if (file == null) return;
+        
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
-            for (Map.Entry<Integer, Circle> entry : nodes.entrySet()) {
-                writer.write(String.format("V,%d,%.2f,%.2f\n", entry.getKey(), entry.getValue().getCenterX(), entry.getValue().getCenterY()));
-            }
+            // 遍历图的所有边并写入
             int n = graph.verticesNumber();
             for (int i = 0; i < n; i++) {
                 for (org.example.core.Edge e = graph.firstEdge(i); e != null; e = graph.nextEdge(e)) {
-                    if (e.getMfrom() < e.getMto()) writer.write(String.format("E,%d,%d,%d\n", e.getMfrom(), e.getMto(), e.getMweight()));
+                    // 为了简洁，只保存 from < to 的边（如果是无向图）
+                    // DSL 解析时会自动添加双向，所以存单向即可
+                    if (e.getMfrom() < e.getMto()) {
+                        writer.write(String.format("%d -> %d : %d\n", e.getMfrom(), e.getMto(), e.getMweight()));
+                    }
                 }
             }
-        } catch (IOException ex) { ex.printStackTrace(); }
+            System.out.println("DSL 保存成功");
+        } catch (IOException ex) { 
+            ex.printStackTrace(); 
+            adjListDisplay.setText("保存失败: " + ex.getMessage());
+        }
     }
 
+    // 【修改】加载 DSL 格式 (.txt)
     public void loadGraph() {
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("打开图");
-        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Graph Files", "*.graph"));
+        fileChooser.setTitle("打开图 (DSL)");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Text Files", "*.txt"));
         File file = fileChooser.showOpenDialog(root.getScene().getWindow());
+        
         if (file == null) return;
-        clearInternalGraphState();
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] parts = line.split(",");
-                if (parts[0].equals("V")) {
-                    int id = Integer.parseInt(parts[1]);
-                    if (id >= graph.verticesNumber()) while(graph.verticesNumber() <= id) graph.addVertex();
-                    addVertexUIOnly(id);
-                    Circle c = nodes.get(id);
-                    if (c!=null) { c.setCenterX(Double.parseDouble(parts[2])); c.setCenterY(Double.parseDouble(parts[3])); updateNodePositions();}
-                } else if (parts[0].equals("E")) {
-                    addEdge(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]));
+        
+        try {
+            StringBuilder dslContent = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    dslContent.append(line).append("\n");
                 }
             }
-            updateAdjListDisplay();
-        } catch (Exception ex) { ex.printStackTrace(); }
+            // 直接复用 DSL 渲染逻辑
+            renderFromDSL(dslContent.toString());
+            System.out.println("DSL 加载成功");
+        } catch (Exception ex) { 
+            ex.printStackTrace(); 
+            adjListDisplay.setText("加载失败: " + ex.getMessage());
+        }
     }
 
     public void performMST() {
@@ -508,7 +516,6 @@ public class AdjListGraphUI {
         if (n == 0) return;
         double baseRadius = 150;
         double radius = baseRadius * currentScale; 
-        // 中心点固定在 2000x2000 画布的中心
         double centerX = 1000; 
         double centerY = 1000;
         
@@ -541,7 +548,6 @@ public class AdjListGraphUI {
 
     public void clearDisplay() { resetStyles(); updateAdjListDisplay(); highlightCode(-1); }
 
-    // 【关键方法】确保 resetStyles 存在于类中
     private void resetStyles() { 
         for (Circle c : nodes.values()) { 
             c.setFill(Color.LIGHTGREEN); 
