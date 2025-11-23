@@ -1,178 +1,178 @@
 package org.example.ui;
 
-import javafx.animation.KeyFrame;
-import javafx.animation.KeyValue;
-import javafx.animation.SequentialTransition;
-import javafx.animation.Timeline;
-import javafx.scene.layout.HBox;
+import javafx.animation.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
 import org.example.core.FastSort;
-import org.example.core.QuickSortStep;
+import org.example.core.SortFrame;
+import java.util.List;
 
 public class FastSortUI extends ControllableSortUI {
 
     private int[] originalData;
-    private QuickSortStep[] steps;
-    private SequentialTransition animation;
-    private long stepDelay = 500;
+    private List<SortFrame> steps;
+    
+    // 快排伪代码
+    private static final String[] PSEUDO_CODE = {
+        "quickSort(arr, low, high)",         // 0
+        "  if (low < high)",                 // 1
+        "    pivot = arr[high]; i = low-1",  // 2
+        "    for (j=low; j<high; j++)",      // 3
+        "      if (arr[j] < pivot)",         // 4
+        "        i++; swap(arr[i], arr[j])", // 5
+        "    swap(arr[i+1], arr[high])",     // 6
+        "    pi = i + 1",                    // 7
+        "    quickSort(arr, low, pi-1)",     // 8
+        "    quickSort(arr, pi+1, high)"     // 9
+    };
 
-    public FastSortUI(int[] initialData) {
-        this.originalData = initialData.clone();
-        this.root = new HBox(SPACING);
-        this.bars = new Rectangle[initialData.length];
+    public FastSortUI(int[] data) {
+        super();
+        this.originalData = data.clone();
         
-        for (int i = 0; i < initialData.length; i++) {
-            double height = initialData[i] * SCALE;
-            Rectangle rect = new Rectangle(BAR_WIDTH, height, Color.LIGHTBLUE);
-            rect.setTranslateY(BASELINE - height);
-            bars[i] = rect;
-            root.getChildren().add(rect);
-        }
+        initBars(data);
+        initCodeView(PSEUDO_CODE);
         
-        // 生成排序步骤
         FastSort sorter = new FastSort();
-        this.steps = sorter.sort(initialData);
+        this.steps = sorter.sort(data);
     }
 
-    public HBox getRoot() {
-        return root;
+    private void initBars(int[] data) {
+        barsContainer.getChildren().clear();
+        bars = new Rectangle[data.length];
+        for (int i = 0; i < data.length; i++) {
+            double height = data[i] * SCALE;
+            Rectangle rect = new Rectangle(BAR_WIDTH, height, Color.LIGHTBLUE);
+            rect.setTranslateX(i * (BAR_WIDTH + SPACING));
+            rect.setTranslateY(BASELINE - height);
+            bars[i] = rect;
+            barsContainer.getChildren().add(rect);
+        }
     }
 
     @Override
     public void visualizeSteps(long stepDelay) {
-        this.stepDelay = stepDelay;
-        isPlaying = true;
-        currentStep = 0;
+        if (animation != null) animation.stop();
+        this.isPlaying = true;
+        if (currentStep >= steps.size()) currentStep = 0;
         
-        // 创建新的动画序列
-        animation = new SequentialTransition();
+        if (stabilityMode) setStabilityMode(true, originalData);
         
-        for (int stepIndex = 0; stepIndex < steps.length; stepIndex++) {
-            final int stepIndexFinal = stepIndex;
-            // 关键修改：将每一帧的 KeyFrame 持续时间严格设为 stepDelay
-            Timeline t = new Timeline(new KeyFrame(Duration.millis(this.stepDelay), e -> {
-                updateBars(steps[stepIndexFinal]);
-                currentStep = stepIndexFinal + 1;
-            }));
-            animation.getChildren().add(t);
-        }
+        final int[] prevArray = originalData.clone();
+        int stepsPerFrame = isRaceMode ? 50 : 1;
 
-        animation.setOnFinished(e -> {
-            isPlaying = false;
-            currentStep = steps.length;
+        Timeline timeline = new Timeline();
+        timeline.setCycleCount(Animation.INDEFINITE);
+        
+        KeyFrame kf = new KeyFrame(Duration.millis(stepDelay), e -> {
+            for (int k = 0; k < stepsPerFrame && currentStep < steps.size(); k++) {
+                SortFrame frame = steps.get(currentStep);
+                int[] currentArray = frame.getArrayState();
+                
+                // 稳定性模式检查
+                if (stabilityMode) {
+                    int s1 = -1, s2 = -1;
+                    for (int m = 0; m < currentArray.length; m++) {
+                        if (currentArray[m] != prevArray[m]) {
+                            if (s1 == -1) s1 = m; else s2 = m;
+                        }
+                    }
+                    if (s1 != -1 && s2 != -1) swapPermutation(s1, s2);
+                }
+                System.arraycopy(currentArray, 0, prevArray, 0, currentArray.length);
+                
+                // UI 更新
+                if (k == stepsPerFrame - 1 || currentStep == steps.size() - 1) {
+                    // 传入详细参数进行高亮渲染
+                    updateBarsWithHighlights(currentArray, frame);
+                    
+                    if (stabilityMode) refreshColors();
+                    
+                    if (!isRaceMode) highlightLine(frame.getLineIndex());
+                    else highlightLine(-1);
+                }
+                currentStep++;
+            }
+
+            if (currentStep >= steps.size()) {
+                timeline.stop();
+                isPlaying = false;
+                highlightLine(-1);
+                resetBarColors();
+            }
         });
         
-        animation.play();
+        timeline.getKeyFrames().add(kf);
+        this.animation = timeline;
+        timeline.play();
     }
 
-    @Override
-    public void nextStep() {
-        if (currentStep < steps.length) {
-            // 单步调试时，强制使用无动画模式或短动画，避免卡顿
-            updateBars(steps[currentStep]);
-            currentStep++;
+    // 核心高亮逻辑
+    private void updateBarsWithHighlights(int[] arr, SortFrame frame) {
+        int iPtr = frame.i;
+        int jPtr = frame.j;
+        int pivotIdx = frame.extra; // 约定 extra 为 pivot 的位置
+        int left = frame.l;
+        int right = frame.r;
+
+        for (int k = 0; k < bars.length; k++) {
+            double height = arr[k] * SCALE;
+            bars[k].setHeight(height);
+            bars[k].setTranslateY(BASELINE - height);
+            
+            if (!stabilityMode) {
+                // 默认颜色
+                Color color = Color.LIGHTBLUE;
+                
+                // 1. 标记当前递归区间 (稍微深一点的背景色，或者保持浅蓝但其他变灰)
+                if (left != -1 && right != -1) {
+                    if (k >= left && k <= right) {
+                        color = Color.SKYBLUE; // 活跃区间
+                    } else {
+                        color = Color.rgb(220, 220, 220); // 非活跃区间变灰
+                    }
+                }
+                
+                // 2. 高亮特殊角色 (优先级高于区间)
+                if (k == pivotIdx) {
+                    color = Color.PURPLE; // Pivot
+                } else if (k == jPtr) {
+                    color = Color.RED;    // j (扫描)
+                } else if (k == iPtr) {
+                    color = Color.BLUE;   // i (小于pivot的边界)
+                }
+                
+                bars[k].setFill(color);
+            }
+        }
+    }
+    
+    private void resetBarColors() {
+        if(!stabilityMode) {
+            for(Rectangle r : bars) r.setFill(Color.LIGHTBLUE);
         }
     }
 
     @Override
     public void reset() {
-        if (animation != null) {
-            animation.stop();
-        }
+        if (animation != null) animation.stop();
         isPlaying = false;
         currentStep = 0;
-        
-        // 重置到初始状态
-        for (int i = 0; i < originalData.length; i++) {
-            double height = originalData[i] * SCALE;
-            bars[i].setHeight(height);
-            bars[i].setTranslateY(BASELINE - height);
-            bars[i].setFill(Color.LIGHTBLUE);
-            bars[i].setTranslateX(0); // 确保X轴偏移归零
+        highlightLine(-1);
+        initBars(originalData);
+        if (stabilityMode) setStabilityMode(true, originalData);
+    }
+    
+    @Override 
+    public void nextStep() { 
+        if (currentStep < steps.size()) {
+            SortFrame frame = steps.get(currentStep);
+            updateBarsWithHighlights(frame.getArrayState(), frame);
+            highlightLine(frame.getLineIndex());
+            currentStep++;
         }
     }
-
-    @Override
-    public int getTotalSteps() {
-        return steps.length;
-    }
-
-    private void updateBars(QuickSortStep step) {
-        // 1. 重置所有柱子颜色
-        for (Rectangle bar : bars) bar.setFill(Color.LIGHTBLUE);
-
-        // 2. 高亮关键元素
-        if (step.pivotIndex >= 0 && step.pivotIndex < bars.length) 
-            bars[step.pivotIndex].setFill(Color.PURPLE);
-        
-        if (step.leftBound >= 0 && step.leftBound < bars.length) 
-            bars[step.leftBound].setFill(Color.GREEN);
-        
-        if (step.rightBound >= 0 && step.rightBound < bars.length) 
-            bars[step.rightBound].setFill(Color.ORANGE);
-
-        // 3. 核心逻辑修复：根据速度决定是否播放位移动画
-        boolean enableAnimation = this.stepDelay >= 200; // 只有慢速模式才启用位移
-
-        // 先更新除了交换涉及的柱子以外的所有柱子高度（防止数据不同步）
-        for (int i = 0; i < step.arrayState.length; i++) {
-            // 如果正在进行交换动画，跳过这两个柱子的高度直接设置，交给动画处理
-            if (enableAnimation && (i == step.swapIndex1 || i == step.swapIndex2)) continue;
-            
-            double height = step.arrayState[i] * SCALE;
-            bars[i].setHeight(height);
-            bars[i].setTranslateY(BASELINE - height);
-            bars[i].setTranslateX(0); // 极其重要：防止之前的动画偏移残留
-        }
-
-        // 4. 处理交换
-        if (step.swapIndex1 >= 0 && step.swapIndex2 >= 0 && step.swapIndex1 != step.swapIndex2) {
-            int i = step.swapIndex1;
-            int j = step.swapIndex2;
-            
-            bars[i].setFill(Color.RED);
-            bars[j].setFill(Color.RED);
-
-            if (enableAnimation) {
-                // --- 慢速模式：漂亮的位伊动画 ---
-                // 使用当前高度，而不是 step.arrayState，因为动画还没完成交换
-                double distance = (j - i) * (BAR_WIDTH + SPACING);
-                
-                // 动画时长必须小于 stepDelay，留一点缓冲
-                double animDuration = Math.min(400, this.stepDelay * 0.9);
-
-                Timeline move = new Timeline(
-                        new KeyFrame(Duration.millis(animDuration),
-                                new KeyValue(bars[i].translateXProperty(), distance),
-                                new KeyValue(bars[j].translateXProperty(), -distance)
-                        )
-                );
-
-                move.setOnFinished(e -> {
-                    // 动画结束后，物理交换高度并归位
-                    double h1 = step.arrayState[i] * SCALE;
-                    double h2 = step.arrayState[j] * SCALE;
-                    
-                    bars[i].setHeight(h1); bars[i].setTranslateY(BASELINE - h1);
-                    bars[j].setHeight(h2); bars[j].setTranslateY(BASELINE - h2);
-                    
-                    bars[i].setTranslateX(0);
-                    bars[j].setTranslateX(0);
-                });
-                move.play();
-            } else {
-                // --- 竞速模式：直接瞬移 ---
-                // 直接设置最终高度，没有任何 timeline 开销
-                double h1 = step.arrayState[i] * SCALE;
-                double h2 = step.arrayState[j] * SCALE;
-                
-                bars[i].setHeight(h1); bars[i].setTranslateY(BASELINE - h1);
-                bars[j].setHeight(h2); bars[j].setTranslateY(BASELINE - h2);
-                bars[i].setTranslateX(0);
-                bars[j].setTranslateX(0);
-            }
-        }
-    }
+    
+    @Override public int getTotalSteps() { return steps.size(); }
 }

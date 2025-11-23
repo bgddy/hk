@@ -6,135 +6,131 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.util.Duration;
 import org.example.core.SelectionSort;
+import org.example.core.SortFrame;
+import java.util.List;
 
 public class SelectionSortUI extends ControllableSortUI {
 
     private int[] originalData;
-    private int[][] steps;
-    private SequentialTransition animation;
+    private List<SortFrame> steps;
+    
+    private static final String[] PSEUDO_CODE = {
+        "for i from 0 to n-1",           // 0
+        "  min_idx = i",                 // 1
+        "  for j from i+1 to n",         // 2
+        "    if arr[j] < arr[min_idx]",  // 3
+        "      min_idx = j",             // 4
+        "  swap(arr[i], arr[min_idx])"   // 5
+    };
 
     public SelectionSortUI(int[] data) {
+        super();
         this.originalData = data.clone();
-        this.root = new HBox(SPACING);
+        
+        // 这里使用父类的 barsContainer
         initBars(data);
+        initCodeView(PSEUDO_CODE);
         
         SelectionSort sorter = new SelectionSort();
         this.steps = sorter.sort(data);
     }
 
     private void initBars(int[] data) {
-        root.getChildren().clear();
+        barsContainer.getChildren().clear();
         bars = new Rectangle[data.length];
         for (int i = 0; i < data.length; i++) {
             double height = data[i] * SCALE;
             Rectangle rect = new Rectangle(BAR_WIDTH, height, Color.LIGHTGREEN);
+            rect.setTranslateX(i * (BAR_WIDTH + SPACING));
             rect.setTranslateY(BASELINE - height);
             bars[i] = rect;
-            root.getChildren().add(rect);
+            barsContainer.getChildren().add(rect);
         }
     }
-
-    public HBox getRoot() { return root; }
 
     @Override
     public void visualizeSteps(long stepDelay) {
         if (animation != null) animation.stop();
-        
         this.isPlaying = true;
-        this.currentStep = 0;
+        if (currentStep >= steps.size()) currentStep = 0;
         
-        animation = new SequentialTransition();
+        if (stabilityMode) setStabilityMode(true, originalData);
         
-        // 只有在慢速模式下（延迟大于50ms）才启用华丽的交换动画
-        boolean enableSwapAnim = stepDelay > 50;
+        final int[] prevArray = originalData.clone();
+        int stepsPerFrame = isRaceMode ? 50 : 1;
 
-        // 初始状态
-        int[] prevArray = originalData.clone();
-
-        for (int i = 0; i < steps.length; i++) {
-            final int stepIndex = i;
-            final int[] currentArray = steps[i];
-            
-            // 1. 寻找发生了交换的两个索引
-            int swapIdx1 = -1, swapIdx2 = -1;
-            if (enableSwapAnim) {
-                for (int k = 0; k < currentArray.length; k++) {
-                    if (currentArray[k] != prevArray[k]) {
-                        if (swapIdx1 == -1) swapIdx1 = k;
-                        else if (swapIdx2 == -1) swapIdx2 = k;
+        Timeline timeline = new Timeline();
+        timeline.setCycleCount(Animation.INDEFINITE);
+        
+        KeyFrame kf = new KeyFrame(Duration.millis(stepDelay), e -> {
+            for (int k = 0; k < stepsPerFrame && currentStep < steps.size(); k++) {
+                SortFrame frame = steps.get(currentStep);
+                int[] currentArray = frame.getArrayState();
+                
+                // 稳定性模式处理
+                if (stabilityMode) {
+                    int s1 = -1, s2 = -1;
+                    for (int m = 0; m < currentArray.length; m++) {
+                        if (currentArray[m] != prevArray[m]) {
+                            if (s1 == -1) s1 = m; else s2 = m;
+                        }
                     }
+                    if (s1 != -1 && s2 != -1) swapPermutation(s1, s2);
                 }
+                System.arraycopy(currentArray, 0, prevArray, 0, currentArray.length);
+                
+                // 渲染更新 (仅在每帧最后一步)
+                if (k == stepsPerFrame - 1 || currentStep == steps.size() - 1) {
+                    // 传递 i, j, minIdx 进行高亮渲染
+                    updateBarsWithHighlights(currentArray, frame.i, frame.j, frame.extra);
+                    
+                    if (stabilityMode) refreshColors();
+                    
+                    // 同步高亮代码行
+                    if (!isRaceMode) highlightLine(frame.getLineIndex());
+                    else highlightLine(-1);
+                }
+                currentStep++;
             }
-            
-            // 更新 prevArray 为当前状态，供下一轮对比
-            prevArray = currentArray.clone();
 
-            if (enableSwapAnim && swapIdx1 != -1 && swapIdx2 != -1) {
-                // === 慢速模式：创建物理交换动画 ===
-                final int u = swapIdx1;
-                final int v = swapIdx2;
-                
-                // 计算物理距离
-                double dist = (v - u) * (BAR_WIDTH + SPACING);
-                
-                // 创建并行动画：两个柱子互换位置
-                Timeline swapAnim = new Timeline(
-                    new KeyFrame(Duration.ZERO, e -> {
-                        // 开始前先高亮
-                        bars[u].setFill(Color.RED);
-                        bars[v].setFill(Color.PURPLE);
-                    }),
-                    new KeyFrame(Duration.millis(stepDelay), 
-                        new KeyValue(bars[u].translateXProperty(), dist),
-                        new KeyValue(bars[v].translateXProperty(), -dist)
-                    )
-                );
-                
-                // 动画结束后，逻辑上更新高度并归位
-                Timeline cleanup = new Timeline(new KeyFrame(Duration.ONE, e -> {
-                    updateBarsInstant(currentArray); // 瞬移更新高度
-                    // 归位X轴（因为高度已经交换了）
-                    bars[u].setTranslateX(0);
-                    bars[v].setTranslateX(0);
-                }));
-                
-                animation.getChildren().addAll(swapAnim, cleanup);
-                
-            } else {
-                // === 竞速模式 或 无交换步骤：直接更新 ===
-                Timeline simpleUpdate = new Timeline(new KeyFrame(Duration.millis(stepDelay), e -> {
-                    updateBarsInstant(currentArray);
-                    currentStep = stepIndex + 1;
-                }));
-                animation.getChildren().add(simpleUpdate);
+            if (currentStep >= steps.size()) {
+                timeline.stop();
+                isPlaying = false;
+                highlightLine(-1);
+                resetBarColors(); // 完成后恢复绿色
             }
-        }
-
-        animation.setOnFinished(e -> {
-            isPlaying = false;
-            currentStep = steps.length;
-            for(Rectangle r : bars) r.setFill(Color.LIGHTGREEN); // 完成后变绿
         });
         
-        animation.play();
+        timeline.getKeyFrames().add(kf);
+        this.animation = timeline;
+        timeline.play();
     }
 
-    // 瞬间更新所有柱子高度
-    private void updateBarsInstant(int[] arr) {
+    // 核心：带高亮参数的更新方法
+    private void updateBarsWithHighlights(int[] arr, int idxI, int idxJ, int idxMin) {
         for (int k = 0; k < bars.length; k++) {
             double height = arr[k] * SCALE;
             bars[k].setHeight(height);
             bars[k].setTranslateY(BASELINE - height);
-            bars[k].setTranslateX(0);
-            bars[k].setFill(Color.LIGHTGREEN);
+            
+            if (!stabilityMode) {
+                // 优先级：minIdx (橙) > j (红) > i (蓝) > 普通 (绿)
+                if (k == idxMin && idxMin != -1) {
+                    bars[k].setFill(Color.ORANGE); // 最小值
+                } else if (k == idxJ && idxJ != -1) {
+                    bars[k].setFill(Color.RED);    // 正在比较
+                } else if (k == idxI && idxI != -1) {
+                    bars[k].setFill(Color.ROYALBLUE); // 当前轮次基准
+                } else {
+                    bars[k].setFill(Color.LIGHTGREEN);
+                }
+            }
         }
     }
-
-    @Override
-    public void nextStep() {
-        if (currentStep < steps.length) {
-            updateBarsInstant(steps[currentStep]);
-            currentStep++;
+    
+    private void resetBarColors() {
+        if(!stabilityMode) {
+            for(Rectangle r : bars) r.setFill(Color.LIGHTGREEN);
         }
     }
 
@@ -143,9 +139,20 @@ public class SelectionSortUI extends ControllableSortUI {
         if (animation != null) animation.stop();
         isPlaying = false;
         currentStep = 0;
+        highlightLine(-1);
         initBars(originalData);
+        if (stabilityMode) setStabilityMode(true, originalData);
     }
-
-    @Override
-    public int getTotalSteps() { return steps.length; }
+    
+    @Override 
+    public void nextStep() { 
+        if (currentStep < steps.size()) {
+            SortFrame frame = steps.get(currentStep);
+            updateBarsWithHighlights(frame.getArrayState(), frame.i, frame.j, frame.extra);
+            highlightLine(frame.getLineIndex());
+            currentStep++;
+        }
+    }
+    
+    @Override public int getTotalSteps() { return steps.size(); }
 }

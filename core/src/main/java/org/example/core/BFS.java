@@ -9,7 +9,7 @@ public class BFS {
    private AdjListGraph graph;
    private boolean[] visited;
    private List<Integer> traversalOrder;
-   private List<TraversalStep> steps; // 记录动画步骤
+   private List<TraversalStep> steps; 
 
     public BFS(AdjListGraph graph) {
         this.graph = graph;
@@ -21,20 +21,16 @@ public class BFS {
     public void traverseFromVertex(int startVertex) {
         traversalOrder.clear();
         steps.clear();
-        // 重置访问状态
         for(int i = 0; i< visited.length; i++) visited[i] = false;
         
         int numVertices = graph.verticesNumber();
         
-        // 1. 先从用户指定的起点开始遍历 (如果合法)
         if (startVertex >= 0 && startVertex < numVertices) {
             broadFirstSearch(startVertex);
         }
         
-        // 2. [核心修改] 检查是否还有未访问的孤立节点/连通分量
         for (int i = 0; i < numVertices; i++) {
             if (!visited[i]) {
-                // 发现新的未访问节点，说明是另一个连通分量
                 broadFirstSearch(i);
             }
         }
@@ -43,30 +39,39 @@ public class BFS {
     public void broadFirstSearch(int startV) {
          visited[startV] = true;
          queue.add(startV);
+         // 对应伪代码第0行: 入队
+         steps.add(new TraversalStep(TraversalStep.Type.VISIT, startV, 0));
          
          while(!queue.isEmpty()) {
+             // 对应伪代码第1行: while loop check
+             // (可选：如果想让循环判断也高亮，可以加一步，但通常省略以免闪烁太快)
+             
              int u = queue.poll();
              traversalOrder.add(u);
              
-             // 记录: 正式访问 u (变色)
-             steps.add(new TraversalStep(TraversalStep.Type.VISIT, u)); 
+             // 对应伪代码第2行: u = dequeue
+             steps.add(new TraversalStep(TraversalStep.Type.VISIT, u, 2)); 
              
              for(Edge e = graph.firstEdge(u); e != null; e = graph.nextEdge(e)) {
+                 // 对应伪代码第3行: for each neighbor
+                 // 我们可以用 VISIT_EDGE 的一种变体来高亮这行，这里简单复用 VISIT_EDGE
+                 
                  int w = graph.toVertex(e);
                  if(!visited[w]) {
                      visited[w] = true;
                      queue.add(w);
                      
-                     // 记录: 发现邻居 w，通过边 e (扩散效果: 边变色)
-                     steps.add(new TraversalStep(TraversalStep.Type.VISIT_EDGE, e));
+                     // 对应伪代码第5行: 发现新节点，标记并入队 (伴随边的动画)
+                     steps.add(new TraversalStep(TraversalStep.Type.VISIT_EDGE, e, 5));
+                 } else {
+                     // 对应伪代码第4行: if not visited (检查了但已访问)
+                     // 可选记录，为了动画流畅性，这里通常不记录"未命中"的情况
                  }
              }
          }
     }
     
     public List<Integer> getTraversalOrder() { return new ArrayList<>(traversalOrder); }
-    
-    // 获取详细步骤用于动画
     public List<TraversalStep> getSteps() { return new ArrayList<>(steps); }
     
     public String getTraversalResult() {

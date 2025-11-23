@@ -3,6 +3,7 @@ package org.example.app;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -10,6 +11,8 @@ import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import org.example.core.*;
 import org.example.ui.*;
+
+import java.util.Random;
 
 public class MainApp extends Application {
 
@@ -30,8 +33,9 @@ public class MainApp extends Application {
     private InsertSortUI insertSortUI;
     private FastSortUI fastSortUI;
     
-    // 新增：排序竞技场UI
     private SortingRaceUI sortingRaceUI;
+    
+    private boolean isStabilityTest = false;
 
     @Override
     public void start(Stage primaryStage) {
@@ -51,7 +55,7 @@ public class MainApp extends Application {
         // 2. 中上
         rightTopPane = new VBox(12);
         rightTopPane.setPadding(new Insets(15));
-        rightTopPane.setPrefWidth(450);
+        rightTopPane.setPrefWidth(600); 
         rightTopPane.setStyle("-fx-background-color: white; -fx-border-color: #bbdefb; -fx-border-radius: 8; -fx-background-radius: 8; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 5, 0, 0, 2);");
 
         // 3. 右上
@@ -66,6 +70,7 @@ public class MainApp extends Application {
         VBox.setVgrow(bottomContainer, Priority.ALWAYS);
         
         bottomPane = new Pane();
+        // 绑定高度，确保 bottomPane 填满剩余空间
         bottomPane.prefHeightProperty().bind(bottomContainer.heightProperty());
         bottomPane.setStyle("-fx-border-color: #bbdefb; -fx-border-radius: 8; -fx-background-color: linear-gradient(to bottom, #fafafa, #ffffff); -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 8, 0, 0, 3);");
         
@@ -78,7 +83,7 @@ public class MainApp extends Application {
         typeSelector = new ComboBox<>();
         typeSelector.getItems().addAll(
                 "Selection Sort", "Insertion Sort", "Quick Sort",
-                "Sorting Race", // 新增选项
+                "Sorting Race", 
                 "Adjacency Matrix", "Adjacency List"
         );
         typeSelector.setValue("Selection Sort");
@@ -99,7 +104,7 @@ public class MainApp extends Application {
         typeSelector.setOnAction(e -> updateInputArea(typeSelector.getValue()));
         updateInputArea("Selection Sort");
 
-        Scene scene = new Scene(root, 1200, 900);
+        Scene scene = new Scene(root, 1250, 900);
         primaryStage.setScene(scene);
         primaryStage.setTitle("Unified Algorithm & Graph Visualization + AI");
         primaryStage.show();
@@ -202,12 +207,16 @@ public class MainApp extends Application {
         rightTopPane.getChildren().clear();
         bottomPane.getChildren().clear();
 
+        if (bottomPane.getParent() instanceof VBox) {
+            VBox container = (VBox) bottomPane.getParent();
+            container.getChildren().removeIf(node -> node instanceof HBox);
+        }
+
         HBox controlPanel = null;
         
-        // 修改判断条件，包含 Sorting Race
         if (type.contains("Sort") || type.contains("Race")) {
             Button autoPlayBtn = createStyledButton("自动播放", "#4caf50");
-            if (type.contains("Race")) autoPlayBtn.setText("开始竞速"); // 竞速模式特殊文字
+            if (type.contains("Race")) autoPlayBtn.setText("开始竞速");
 
             Button nextStepBtn = createStyledButton("下一步", "#2196f3");
             Button resetBtn = createStyledButton("重置", "#ff9800");
@@ -220,30 +229,26 @@ public class MainApp extends Application {
             controlPanel.getChildren().addAll(autoPlayBtn, nextStepBtn, pauseBtn, resetBtn);
             
             if (type.equals("Selection Sort") && selectionSortUI != null) {
-                autoPlayBtn.setOnAction(ev -> selectionSortUI.visualizeSteps(1000L));
+                autoPlayBtn.setOnAction(ev -> selectionSortUI.visualizeSteps(50L));
                 nextStepBtn.setOnAction(ev -> selectionSortUI.nextStep());
                 resetBtn.setOnAction(ev -> selectionSortUI.reset());
                 pauseBtn.setOnAction(ev -> selectionSortUI.pause());
             } else if (type.equals("Insertion Sort") && insertSortUI != null) {
-                autoPlayBtn.setOnAction(ev -> insertSortUI.visualizeSteps(1000L));
+                autoPlayBtn.setOnAction(ev -> insertSortUI.visualizeSteps(50L));
                 nextStepBtn.setOnAction(ev -> insertSortUI.nextStep());
                 resetBtn.setOnAction(ev -> insertSortUI.reset());
                 pauseBtn.setOnAction(ev -> insertSortUI.pause());
             } else if (type.equals("Quick Sort") && fastSortUI != null) {
-                autoPlayBtn.setOnAction(ev -> fastSortUI.visualizeSteps(1500L));
+                autoPlayBtn.setOnAction(ev -> fastSortUI.visualizeSteps(100L));
                 nextStepBtn.setOnAction(ev -> fastSortUI.nextStep());
                 resetBtn.setOnAction(ev -> fastSortUI.reset());
                 pauseBtn.setOnAction(ev -> fastSortUI.pause());
             } else if (type.equals("Sorting Race")) {
-                // 竞速模式的逻辑绑定
-                if (sortingRaceUI == null) {
-                    sortingRaceUI = new SortingRaceUI();
-                }
+                if (sortingRaceUI == null) sortingRaceUI = new SortingRaceUI();
                 
-                // 添加竞速模式特有的“生成新数据”按钮
                 Button newDataBtn = createStyledButton("换一组数据", "#9c27b0");
                 newDataBtn.setOnAction(ev -> sortingRaceUI.generateNewData(100));
-                controlPanel.getChildren().add(newDataBtn); // 添加到控制面板末尾
+                controlPanel.getChildren().add(newDataBtn);
 
                 autoPlayBtn.setOnAction(ev -> sortingRaceUI.startRace());
                 nextStepBtn.setOnAction(ev -> sortingRaceUI.nextStep());
@@ -257,65 +262,109 @@ public class MainApp extends Application {
             case "Insertion Sort":
             case "Quick Sort":
                 TextField arrayInput = new TextField();
-                arrayInput.setPromptText("输入数组，如: 8,3,5,1,6");
-                Button sortBtn = new Button("开始排序");
-                rightTopPane.getChildren().addAll(new Label("排序输入:"), arrayInput, sortBtn);
+                arrayInput.setPromptText("如: 8,3,5,1,6");
+                arrayInput.setPrefWidth(160);
+
+                Button randomBtn = createStyledButton("随机", "#9c27b0");
+                randomBtn.setTooltip(new Tooltip("生成5-10个不超过10的随机数"));
+                randomBtn.setOnAction(e -> {
+                    Random rand = new Random();
+                    int count = rand.nextInt(6) + 5; 
+                    StringBuilder sb = new StringBuilder();
+                    for(int i=0; i<count; i++) {
+                        sb.append(rand.nextInt(10) + 1); 
+                        if(i < count - 1) sb.append(",");
+                    }
+                    arrayInput.setText(sb.toString());
+                    isStabilityTest = false;
+                });
+
+                Button stabilityBtn = createStyledButton("测稳定", "#e91e63");
+                stabilityBtn.setTooltip(new Tooltip("加载强效测试数据(5,5,2)，必定触发不稳定现象"));
+                stabilityBtn.setOnAction(e -> {
+                    arrayInput.setText("5,5,2");
+                    isStabilityTest = true;
+                });
+
+                Button sortBtn = createStyledButton("开始排序", "#2196f3");
+                
+                HBox inputBox = new HBox(8);
+                inputBox.setAlignment(Pos.CENTER_LEFT);
+                inputBox.getChildren().addAll(new Label("输入:"), arrayInput, randomBtn, stabilityBtn, sortBtn);
+                
+                rightTopPane.getChildren().add(inputBox);
 
                 final HBox finalControlPanel = controlPanel;
                 sortBtn.setOnAction(ev -> {
-                    String[] parts = arrayInput.getText().split(",");
-                    int[] arr = new int[parts.length];
-                    for (int i = 0; i < parts.length; i++) arr[i] = Integer.parseInt(parts[i].trim());
+                    String text = arrayInput.getText();
+                    if(text == null || text.trim().isEmpty()) return;
                     
-                    bottomPane.getChildren().clear();
-                    if (type.equals("Selection Sort")) {
-                        selectionSortUI = new SelectionSortUI(arr);
-                        bottomPane.getChildren().add(selectionSortUI.getRoot());
-                    } else if (type.equals("Insertion Sort")) {
-                        insertSortUI = new InsertSortUI(arr);
-                        bottomPane.getChildren().add(insertSortUI.getRoot());
-                    } else {
-                        fastSortUI = new FastSortUI(arr);
-                        bottomPane.getChildren().add(fastSortUI.getRoot());
+                    String[] parts = text.split(",");
+                    int[] arr = new int[parts.length];
+                    try {
+                        for (int i = 0; i < parts.length; i++) arr[i] = Integer.parseInt(parts[i].trim());
+                        
+                        bottomPane.getChildren().clear();
+                        if (type.equals("Selection Sort")) {
+                            selectionSortUI = new SelectionSortUI(arr);
+                            if(isStabilityTest) selectionSortUI.setStabilityMode(true, arr);
+                            // 绑定尺寸
+                            selectionSortUI.getRoot().prefWidthProperty().bind(bottomPane.widthProperty());
+                            selectionSortUI.getRoot().prefHeightProperty().bind(bottomPane.heightProperty());
+                            bottomPane.getChildren().add(selectionSortUI.getRoot());
+                        } else if (type.equals("Insertion Sort")) {
+                            insertSortUI = new InsertSortUI(arr);
+                            if(isStabilityTest) insertSortUI.setStabilityMode(true, arr);
+                            // 绑定尺寸
+                            insertSortUI.getRoot().prefWidthProperty().bind(bottomPane.widthProperty());
+                            insertSortUI.getRoot().prefHeightProperty().bind(bottomPane.heightProperty());
+                            bottomPane.getChildren().add(insertSortUI.getRoot());
+                        } else {
+                            fastSortUI = new FastSortUI(arr);
+                            if(isStabilityTest) fastSortUI.setStabilityMode(true, arr);
+                            // 绑定尺寸
+                            fastSortUI.getRoot().prefWidthProperty().bind(bottomPane.widthProperty());
+                            fastSortUI.getRoot().prefHeightProperty().bind(bottomPane.heightProperty());
+                            bottomPane.getChildren().add(fastSortUI.getRoot());
+                        }
+                        VBox container = (VBox) bottomPane.getParent();
+                        container.getChildren().removeIf(node -> node instanceof HBox);
+                        container.getChildren().add(finalControlPanel);
+                    } catch (Exception ex) {
+                        System.out.println("输入解析错误");
                     }
-                    VBox container = (VBox) bottomPane.getParent();
-                    container.getChildren().removeIf(node -> node instanceof HBox);
-                    container.getChildren().add(finalControlPanel);
+                    isStabilityTest = false;
                 });
                 break;
             
-            // 新增：竞速模式
             case "Sorting Race":
-                if (sortingRaceUI == null) {
-                    sortingRaceUI = new SortingRaceUI();
-                }
-                
-                // 1. 清空并设置中间区域
+                if (sortingRaceUI == null) sortingRaceUI = new SortingRaceUI();
                 bottomPane.getChildren().clear();
-                HBox raceRoot = sortingRaceUI.getRoot(); // 获取新的 HBox 根节点
-                
-                // 绑定宽度和高度，让它填满区域
+                HBox raceRoot = sortingRaceUI.getRoot(); 
+                // 绑定尺寸
                 raceRoot.prefWidthProperty().bind(bottomPane.widthProperty());
                 raceRoot.prefHeightProperty().bind(bottomPane.heightProperty());
-                
                 bottomPane.getChildren().add(raceRoot);
-                
-                // 2. 清空顶部中间区域（不再需要计分板占位，因为计分板已经集成在赛道里了）
                 rightTopPane.getChildren().clear(); 
-                rightTopPane.getChildren().add(new Label("🏆 算法竞速模式 - 实时监控中")); // 可以放个简单标题
-                
-                // 3. 设置底部控制按钮
+                rightTopPane.getChildren().add(new Label("🏆 算法竞速模式 - 实时监控中"));
                 VBox container = (VBox) bottomPane.getParent();
                 container.getChildren().removeIf(node -> node instanceof HBox);
                 container.getChildren().add(controlPanel);
                 break;
+                
             case "Adjacency List":
                 buildGraphControlPanel("邻接表", adjGraphUI, rightTopPane);
+                // 【关键修复】绑定尺寸，防止消失
+                adjGraphUI.getPane().prefWidthProperty().bind(bottomPane.widthProperty());
+                adjGraphUI.getPane().prefHeightProperty().bind(bottomPane.heightProperty());
                 bottomPane.getChildren().add(adjGraphUI.getPane());
                 break;
-
+                
             case "Adjacency Matrix":
                 buildMatrixControlPanel("邻接矩阵", matrixGraphUI, rightTopPane);
+                // 【关键修复】绑定尺寸
+                matrixGraphUI.getPane().prefWidthProperty().bind(bottomPane.widthProperty());
+                matrixGraphUI.getPane().prefHeightProperty().bind(bottomPane.heightProperty());
                 bottomPane.getChildren().add(matrixGraphUI.getPane());
                 break;
         }
