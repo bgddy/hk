@@ -14,7 +14,9 @@ public class InsertSortUI extends ControllableSortUI {
     private int[] originalData;
     private List<SortFrame> steps;
     
-    // 插入排序伪代码
+    
+    private int tempKeyPermIndex = -1;
+    
     private static final String[] PSEUDO_CODE = {
         "for i from 1 to n-1",           // 0
         "  key = arr[i]; j = i - 1",     // 1
@@ -25,7 +27,7 @@ public class InsertSortUI extends ControllableSortUI {
     };
 
     public InsertSortUI(int[] data) {
-        super(); // 初始化父类容器
+        super(); 
         this.originalData = data.clone();
         
         initBars(data);
@@ -54,8 +56,10 @@ public class InsertSortUI extends ControllableSortUI {
         this.isPlaying = true;
         if (currentStep >= steps.size()) currentStep = 0;
         
+       
         if (stabilityMode) {
             setStabilityMode(true, originalData);
+            tempKeyPermIndex = -1;
         }
 
         int stepsPerFrame = isRaceMode ? 50 : 1;
@@ -68,11 +72,29 @@ public class InsertSortUI extends ControllableSortUI {
                 SortFrame frame = steps.get(currentStep);
                 int[] currentArray = frame.getArrayState();
                 
-                // 稳定性模式检查 (检测是否有相同元素的相对顺序变化)
-                if (stabilityMode) {
-                    // 这里的简化逻辑主要用于视觉展示交换
-                    // 插入排序是移动操作，这里为了通用性保留结构，
-                    // 但实际颜色更新主要靠下面的 updateBarsWithHighlights
+                
+                if (stabilityMode && permutation != null) {
+                    int line = frame.getLineIndex();
+                    
+                    
+                    if (line == 1) {
+                        if (frame.i >= 0 && frame.i < permutation.length) {
+                            tempKeyPermIndex = permutation[frame.i];
+                        }
+                    }
+                   
+                    else if (line == 3) {
+                        
+                        if (frame.j >= 0 && frame.extra >= 0 && frame.extra < permutation.length) {
+                            permutation[frame.extra] = permutation[frame.j];
+                        }
+                    }
+                    
+                    else if (line == 5) {
+                        if (frame.extra >= 0 && frame.extra < permutation.length && tempKeyPermIndex != -1) {
+                            permutation[frame.extra] = tempKeyPermIndex;
+                        }
+                    }
                 }
                 
                 // UI 更新
@@ -114,20 +136,13 @@ public class InsertSortUI extends ControllableSortUI {
                 Color color = Color.LIGHTGREEN; // 默认颜色
                 
                 // 颜色优先级逻辑：
-                // 1. 正在移动的目标位置或最终插入点 (Extra) -> 橙色
-                // 2. 当前扫描比较的位置 (j) -> 红色
-                // 3. 外层循环当前处理的 Key 初始位置 (i) -> 蓝色
-                
                 if (k == idxExtra && idxExtra != -1) {
-                    color = Color.ORANGE;
+                    color = Color.ORANGE; // 移动目标
                 } else if (k == idxJ && idxJ != -1) {
-                    color = Color.RED;
+                    color = Color.RED;    // 比较对象
                 } else if (k == idxI && idxI != -1) {
-                    color = Color.ROYALBLUE;
+                    color = Color.ROYALBLUE; // 待插入元素初始位置
                 } 
-                
-                // 为了让已排序部分和未排序部分区分明显，也可以稍微变色，
-                // 但这里为了突出变量高亮，保持默认浅绿即可。
                 
                 bars[k].setFill(color);
             }
@@ -153,6 +168,7 @@ public class InsertSortUI extends ControllableSortUI {
     @Override 
     public void nextStep() { 
         if (currentStep < steps.size()) {
+            
             SortFrame frame = steps.get(currentStep);
             updateBarsWithHighlights(frame.getArrayState(), frame);
             highlightLine(frame.getLineIndex());

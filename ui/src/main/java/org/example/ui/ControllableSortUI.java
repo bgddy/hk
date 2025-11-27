@@ -14,16 +14,14 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class ControllableSortUI {
-    protected HBox root;           // 主容器
-    protected Pane barsContainer;  // 柱状图容器
-    protected ListView<String> codeListView; // 代码显示列表
+    protected HBox root;          
+    protected Pane barsContainer;  
+    protected ListView<String> codeListView; 
     
     protected Rectangle[] bars;
     protected Animation animation;
     protected int currentStep = 0;
     protected boolean isPlaying = false;
-    
-    // === 模式控制 ===
     protected boolean stabilityMode = false;
     protected boolean isRaceMode = false; 
     
@@ -78,17 +76,12 @@ public abstract class ControllableSortUI {
                 }
             }
         });
-        
-        // 将代码视图添加到右侧
         if (!root.getChildren().contains(codeListView)) {
             root.getChildren().add(codeListView);
         }
     }
-
-    // 新增：高亮指定行
     protected void highlightLine(int lineIndex) {
         if (codeListView != null && lineIndex >= 0 && lineIndex < codeListView.getItems().size()) {
-            // JavaFX 的选择模型会自动触发 CellFactory 的 updateItem
             codeListView.getSelectionModel().select(lineIndex);
             codeListView.scrollTo(lineIndex);
         } else if (codeListView != null) {
@@ -119,7 +112,6 @@ public abstract class ControllableSortUI {
     public int getCurrentStep() { return currentStep; }
     public abstract int getTotalSteps();
 
-    // ... (stabilityMode 相关代码保持不变，直接复制过来即可) ...
     public void setStabilityMode(boolean enable, int[] originalData) {
         this.stabilityMode = enable;
         if (!enable) return;

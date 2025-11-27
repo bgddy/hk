@@ -52,16 +52,15 @@ public class SortingRaceUI {
         raceData = new int[size];
         Random rand = new Random();
         for (int i = 0; i < size; i++) {
-            // 【重要修复】范围改为 1-100，避免大量重复导致的快排退化
             raceData[i] = rand.nextInt(100) + 1; 
         }
 
-        // 初始化
+       
         selectionSortUI = new SelectionSortUI(raceData.clone());
         insertSortUI = new InsertSortUI(raceData.clone());
         fastSortUI = new FastSortUI(raceData.clone());
         
-        // 【核心修复】必须手动开启 RaceMode，通知算法使用高速批量渲染
+       
         selectionSortUI.setRaceMode(true);
         insertSortUI.setRaceMode(true);
         fastSortUI.setRaceMode(true);

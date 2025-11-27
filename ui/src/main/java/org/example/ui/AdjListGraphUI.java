@@ -178,7 +178,6 @@ public class AdjListGraphUI {
 
     public BorderPane getPane() { return root; }
 
-    // 算法相关方法保持不变
     public void performBFS(String startVertexText) {
         stopAnimation();
         resetStyles();
@@ -224,6 +223,71 @@ public class AdjListGraphUI {
         } catch (Exception e) { adjListDisplay.setText("错误: " + e.getMessage()); }
     }
 
+    public void performMST() {
+        stopAnimation();
+        resetStyles();
+        String[] mstCode = {
+            "// Kruskal MST Algorithm",
+            "Sort all edges by weight",       // line 1
+            "For each edge (u, v):",          // line 2
+            "  if find(u) != find(v):",       // line 3 (add)
+            "    union(u, v); add to MST",    // line 3 (add)
+            "  else: ignore (cycle formed)"   // line 4 (reject)
+        };
+        setCode(mstCode);
+        
+        kruskal k = new kruskal(graph); 
+        Edge[] mst = k.generateMST();
+        
+        if (mst == null) { 
+            adjListDisplay.setText("无法生成MST (图可能不连通)"); 
+            return; 
+        }
+        
+        animateSteps(k.getSteps(), "MST");
+        adjListDisplay.setText(graph.getAdjListString() + "\n\n[Kruskal] 最小生成树已生成。");
+    }
+
+    public void performDijkstra(String startText, String endText) {
+        stopAnimation();
+        resetStyles();
+        setCode(new String[]{"// Dijkstra", "dist[start]=0", "while PQ not empty:", "  u = PQ.poll()", "  relax neighbors"});
+        try {
+            int start = Integer.parseInt(startText.trim());
+            int end = Integer.parseInt(endText.trim());
+            if (!nodes.containsKey(start) || !nodes.containsKey(end)) return;
+            Dijkstra dijkstra = new Dijkstra(graph);
+            List<Integer> path = dijkstra.findShortestPath(start, end);
+            adjListDisplay.setText(dijkstra.getProcessLog());
+            animatePath(path);
+        } catch (Exception e) {}
+    }
+
+    public void performDijkstraAll(String startText) {
+        stopAnimation();
+        resetStyles();
+        setCode(new String[]{"// Dijkstra (All)", "dist[start]=0", "while PQ not empty:", "  u = PQ.poll()", "  relax neighbors"});
+        try {
+            int start = Integer.parseInt(startText.trim());
+            if (!nodes.containsKey(start)) {
+                adjListDisplay.setText("错误: 顶点不存在");
+                return;
+            }
+            
+            Dijkstra dijkstra = new Dijkstra(graph);
+            // -1 表示不提前结束，跑完所有点
+            dijkstra.findShortestPath(start, -1); 
+            
+            adjListDisplay.setText(dijkstra.getAllPathsResult(start));
+            
+            // 使用 Dijkstra 模式播放动画
+            animateSteps(dijkstra.getSteps(), "Dijkstra");
+            
+        } catch (NumberFormatException e) {
+            adjListDisplay.setText("请输入有效的起点ID");
+        }
+    }
+
     private void stopAnimation() {
         if (currentAnimation != null) {
             currentAnimation.stop();
@@ -232,32 +296,96 @@ public class AdjListGraphUI {
         highlightCode(-1);
     }
 
+    // ================= 修复后的动画逻辑 =================
     private void animateSteps(List<TraversalStep> steps, String algoType) {
         if (steps == null || steps.isEmpty()) return;
         currentAnimation = new Timeline();
-        double delayPerStep = 1000;
+        double delayPerStep = 800; 
+        
         currentAnimation.getKeyFrames().add(new KeyFrame(Duration.ZERO, e -> highlightCode(0)));
+        
+        // [关键修复]：记录当前最短路径树上的边 (TargetNodeID -> EdgeKey)
+        // 用于防止后续的检查操作覆盖红色高亮
+        Map<Integer, String> currentPathEdges = new HashMap<>();
+        
         for (int i = 0; i < steps.size(); i++) {
             TraversalStep step = steps.get(i);
             double time = (i + 1) * delayPerStep;
+            
             KeyFrame kf = new KeyFrame(Duration.millis(time), e -> {
                 highlightCode(step.getLineIndex());
-                switch (step.getType()) {
-                    case VISIT: highlightNode(step.getVertexId(), Color.ORANGE); break;
-                    case VISIT_EDGE: highlightEdge(step.getEdge(), Color.GREEN); break;
-                    case BACKTRACK: highlightNode(step.getVertexId(), Color.MEDIUMPURPLE); break;
+                
+                // 计算当前边的唯一 Key
+                String stepEdgeKey = "";
+                if (step.getEdge() != null) {
+                    int u = step.getEdge().getMfrom();
+                    int v = step.getEdge().getMto();
+                    stepEdgeKey = Math.min(u, v) + "-" + Math.max(u, v);
                 }
-                if (algoType.equals("BFS")) {
+
+                if (algoType.equals("BFS") || algoType.equals("DFS")) {
                     switch (step.getType()) {
-                        case VISIT: highlightCode(4); break;
-                        case VISIT_EDGE: highlightCode(5); break;
-                        default: highlightCode(3);
+                        case VISIT: highlightNode(step.getVertexId(), Color.ORANGE); break;
+                        case VISIT_EDGE: highlightEdge(step.getEdge(), Color.GREEN); break;
+                        case BACKTRACK: highlightNode(step.getVertexId(), Color.MEDIUMPURPLE); break;
+                        case RELAX_SUCCESS: highlightEdge(step.getEdge(), Color.RED); break; 
                     }
-                } else if (algoType.equals("DFS")) {
+                } 
+                // === Dijkstra 动画修复 ===
+                else if (algoType.equals("Dijkstra")) {
                     switch (step.getType()) {
-                        case VISIT: highlightCode(1); break;
-                        case VISIT_EDGE: highlightCode(5); break;
-                        case BACKTRACK: highlightCode(6); break;
+                        case VISIT: 
+                            if(step.getVertexId() != -1) highlightNode(step.getVertexId(), Color.ORANGE);
+                            break;
+                            
+                        case VISIT_EDGE:
+                            // [关键] 只有当这条边 不是 当前已确认的红边时，才允许变色
+                            if (!currentPathEdges.containsValue(stepEdgeKey)) {
+                                // Line 5: 检查中 (蓝)
+                                if (step.getLineIndex() == 5) {
+                                    highlightEdge(step.getEdge(), Color.CORNFLOWERBLUE);
+                                } 
+                                // Line 6: 检查结束/未更新 (灰)
+                                else if (step.getLineIndex() == 6) {
+                                    highlightEdge(step.getEdge(), Color.LIGHTGRAY);
+                                }
+                            }
+                            break;
+                            
+                        case RELAX_SUCCESS:
+                            // 松弛成功: 发现更短路径
+                            Edge newEdge = step.getEdge();
+                            int targetNode = newEdge.getMto();
+                            
+                            // 1. [关键] 如果该节点之前已经有一条红边，把它变回灰色 (因为被新路径替代了)
+                            if (currentPathEdges.containsKey(targetNode)) {
+                                String oldKey = currentPathEdges.get(targetNode);
+                                // 通过 edges Map 找到旧边的 UI 对象并变灰
+                                if (edges.containsKey(oldKey) && !oldKey.equals(stepEdgeKey)) {
+                                    EdgeUI oldUI = edges.get(oldKey);
+                                    oldUI.line.setStroke(Color.LIGHTGRAY);
+                                    oldUI.line.setStrokeWidth(2);
+                                }
+                            }
+                            
+                            // 2. 将新边变红
+                            highlightEdge(newEdge, Color.RED);
+                            // 3. 更新记录
+                            currentPathEdges.put(targetNode, stepEdgeKey);
+                            // 4. 目标节点变绿
+                            highlightNode(targetNode, Color.LIGHTGREEN);
+                            break;
+                    }
+                }
+                else if (algoType.equals("MST")) {
+                    switch (step.getType()) {
+                        case CHECK_EDGE: highlightEdge(step.getEdge(), Color.GOLD); break;
+                        case ADD_EDGE:
+                            highlightEdge(step.getEdge(), Color.GREEN);
+                            highlightNode(step.getEdge().getMfrom(), Color.LIGHTGREEN);
+                            highlightNode(step.getEdge().getMto(), Color.LIGHTGREEN);
+                            break;
+                        case REJECT_EDGE: highlightEdge(step.getEdge(), Color.LIGHTGRAY); break;
                     }
                 }
             });
@@ -290,11 +418,15 @@ public class AdjListGraphUI {
         EdgeUI ui = edges.get(key);
         if (ui != null) {
             ui.line.setStroke(color);
-            ui.line.setStrokeWidth(4);
+            // 如果是灰色，恢复细线；如果是高亮色，加粗
+            if (color.equals(Color.LIGHTGRAY) || color.equals(Color.GRAY)) {
+                ui.line.setStrokeWidth(2);
+            } else {
+                ui.line.setStrokeWidth(4);
+            }
         }
     }
 
-    // 核心功能：DSL 渲染
     public void renderFromDSL(String dslText) {
         if (dslText == null || dslText.trim().isEmpty()) return;
         this.graph = new AdjListGraph(5);
@@ -348,7 +480,6 @@ public class AdjListGraphUI {
         edges.clear();
     }
 
-    // 【修改】保存为 DSL 格式 (.txt)
     public void saveGraph() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("保存图 (DSL)");
@@ -359,12 +490,9 @@ public class AdjListGraphUI {
         if (file == null) return;
         
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
-            // 遍历图的所有边并写入
             int n = graph.verticesNumber();
             for (int i = 0; i < n; i++) {
                 for (org.example.core.Edge e = graph.firstEdge(i); e != null; e = graph.nextEdge(e)) {
-                    // 为了简洁，只保存 from < to 的边（如果是无向图）
-                    // DSL 解析时会自动添加双向，所以存单向即可
                     if (e.getMfrom() < e.getMto()) {
                         writer.write(String.format("%d -> %d : %d\n", e.getMfrom(), e.getMto(), e.getMweight()));
                     }
@@ -377,7 +505,6 @@ public class AdjListGraphUI {
         }
     }
 
-    // 【修改】加载 DSL 格式 (.txt)
     public void loadGraph() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("打开图 (DSL)");
@@ -394,7 +521,6 @@ public class AdjListGraphUI {
                     dslContent.append(line).append("\n");
                 }
             }
-            // 直接复用 DSL 渲染逻辑
             renderFromDSL(dslContent.toString());
             System.out.println("DSL 加载成功");
         } catch (Exception ex) { 
@@ -403,44 +529,30 @@ public class AdjListGraphUI {
         }
     }
 
-    public void performMST() {
-        stopAnimation();
-        resetStyles();
-        setCode(new String[]{"// Kruskal MST", "Sort edges", "For each edge:", "  If not connected -> Union & Add"});
-        kruskal k = new kruskal(graph); Edge[] mst = k.generateMST();
-        if (mst == null) { adjListDisplay.setText("无法生成MST"); return; }
-        for (Edge e : mst) {
-            int min = Math.min(e.getMfrom(), e.getMto());
-            int max = Math.max(e.getMfrom(), e.getMto());
-            EdgeUI ui = edges.get(min + "-" + max);
-            if (ui != null) { ui.line.setStroke(Color.GREEN); ui.line.setStrokeWidth(4); }
-        }
-        highlightCode(5); 
-    }
-
-    public void performDijkstra(String startText, String endText) {
-        stopAnimation();
-        resetStyles();
-        setCode(new String[]{"// Dijkstra", "dist[start]=0", "while PQ not empty:", "  u = PQ.poll()", "  relax neighbors"});
-        try {
-            int start = Integer.parseInt(startText.trim());
-            int end = Integer.parseInt(endText.trim());
-            if (!nodes.containsKey(start) || !nodes.containsKey(end)) return;
-            Dijkstra dijkstra = new Dijkstra(graph);
-            List<Integer> path = dijkstra.findShortestPath(start, end);
-            adjListDisplay.setText(dijkstra.getProcessLog());
-            animatePath(path);
-        } catch (Exception e) {}
-    }
-
     private void animatePath(List<Integer> path) {
         if (path.size() < 1) return;
         currentAnimation = new Timeline();
         for (int i = 0; i < path.size(); i++) {
-            int v = path.get(i);
-            currentAnimation.getKeyFrames().add(new KeyFrame(Duration.millis(i * 800), e -> {
-                if(nodes.get(v)!=null) nodes.get(v).setFill(Color.GOLD);
-            }));
+            final int index = i;
+            final int vertexId = path.get(index);
+            KeyFrame kfVertex = new KeyFrame(Duration.millis(i * 800), e -> {
+                Circle c = nodes.get(vertexId);
+                if (c != null) { c.setFill(Color.GOLD); c.setRadius(25); }
+                highlightCode(2); 
+            });
+            currentAnimation.getKeyFrames().add(kfVertex);
+            if (i < path.size() - 1) {
+                final int nextVertexId = path.get(i + 1);
+                KeyFrame kfEdge = new KeyFrame(Duration.millis(i * 800 + 400), e -> {
+                    int min = Math.min(vertexId, nextVertexId);
+                    int max = Math.max(vertexId, nextVertexId);
+                    String key = min + "-" + max;
+                    EdgeUI edgeUI = edges.get(key);
+                    if (edgeUI != null) { edgeUI.line.setStroke(Color.RED); edgeUI.line.setStrokeWidth(4); }
+                    highlightCode(5); 
+                });
+                currentAnimation.getKeyFrames().add(kfEdge);
+            }
         }
         currentAnimation.play();
     }
@@ -477,8 +589,6 @@ public class AdjListGraphUI {
         });
     }
     
-    private void updateConnectedEdges(int id) { updateNodePositions(); } 
-
     public void addVertex(int id) { if (!nodes.containsKey(id)) { graph.addVertex(); addVertexUIOnly(id); updateAdjListDisplay(); } }
     
     public void removeVertex(int id) {

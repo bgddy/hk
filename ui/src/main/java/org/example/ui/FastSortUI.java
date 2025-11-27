@@ -13,7 +13,7 @@ public class FastSortUI extends ControllableSortUI {
     private int[] originalData;
     private List<SortFrame> steps;
     
-    // 快排伪代码
+    
     private static final String[] PSEUDO_CODE = {
         "quickSort(arr, low, high)",         // 0
         "  if (low < high)",                 // 1

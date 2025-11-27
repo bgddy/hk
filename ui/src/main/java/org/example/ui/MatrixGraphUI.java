@@ -1,6 +1,7 @@
 package org.example.ui;
 
 import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -16,7 +17,9 @@ import javafx.scene.transform.Scale;
 import javafx.stage.FileChooser;
 import javafx.util.Duration;
 import org.example.core.Dijkstra;
+import org.example.core.Edge;
 import org.example.core.MatrixGraph;
+import org.example.core.TraversalStep;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -32,6 +35,7 @@ public class MatrixGraphUI {
     private ScrollPane graphScrollPane;
     private Text matrixDisplay;
     private MatrixGraph graph;
+    private Timeline currentAnimation;
     
     private double currentScale = 1.0;
 
@@ -209,6 +213,7 @@ public class MatrixGraphUI {
 
     public void performDijkstra(String startText, String endText) {
         resetStyles();
+        stopAnimation();
         try {
             int start = Integer.parseInt(startText.trim());
             int end = Integer.parseInt(endText.trim());
@@ -232,10 +237,138 @@ public class MatrixGraphUI {
             matrixDisplay.setText(sb.toString());
         } catch (NumberFormatException e) { matrixDisplay.setText(graph.getMatrixString() + "\n\n错误: 请输入有效的顶点编号"); }
     }
+
+    public void performDijkstraAll(String startText) {
+        resetStyles();
+        stopAnimation();
+        try {
+            int start = Integer.parseInt(startText.trim());
+            if (!graph.isVertexExists(start)) {
+                matrixDisplay.setText("错误: 顶点不存在");
+                return;
+            }
+            
+            Dijkstra dijkstra = new Dijkstra(graph);
+            dijkstra.findShortestPath(start, -1); 
+            
+            StringBuilder sb = new StringBuilder(graph.getMatrixString());
+            sb.append("\n\n").append(dijkstra.getAllPathsResult(start));
+            
+            matrixDisplay.setText(sb.toString());
+            
+            animateSteps(dijkstra.getSteps());
+            
+        } catch (NumberFormatException e) {
+            matrixDisplay.setText("错误: 请输入有效的起点ID");
+        }
+    }
+    
+    private void stopAnimation() {
+        if (currentAnimation != null) {
+            currentAnimation.stop();
+            currentAnimation = null;
+        }
+    }
+
+    // ================= 修复后的动画逻辑 =================
+    private void animateSteps(List<TraversalStep> steps) {
+        if (steps == null || steps.isEmpty()) return;
+        currentAnimation = new Timeline();
+        double delayPerStep = 800;
+        
+        // 记录当前最短路径树上的边 (TargetNodeID -> EdgeKey)
+        Map<Integer, String> currentPathEdges = new HashMap<>();
+        
+        for (int i = 0; i < steps.size(); i++) {
+            TraversalStep step = steps.get(i);
+            double time = (i + 1) * delayPerStep;
+            
+            KeyFrame kf = new KeyFrame(Duration.millis(time), e -> {
+                // 计算当前边的 Key
+                String stepEdgeKey = "";
+                if (step.getEdge() != null) {
+                    int u = step.getEdge().getMfrom();
+                    int v = step.getEdge().getMto();
+                    stepEdgeKey = Math.min(u, v) + "-" + Math.max(u, v);
+                }
+
+                switch (step.getType()) {
+                    case VISIT: 
+                        if(step.getVertexId() != -1) highlightNode(step.getVertexId(), Color.ORANGE);
+                        break;
+                        
+                    case VISIT_EDGE:
+                        // 只有当这条边 不是 当前红边时，才变蓝/灰
+                        if (!currentPathEdges.containsValue(stepEdgeKey)) {
+                            if (step.getLineIndex() == 5) {
+                                highlightEdge(step.getEdge(), Color.CORNFLOWERBLUE);
+                            } 
+                            else if (step.getLineIndex() == 6) {
+                                highlightEdge(step.getEdge(), Color.LIGHTGRAY);
+                            }
+                        }
+                        break;
+                        
+                    case RELAX_SUCCESS:
+                        Edge newEdge = step.getEdge();
+                        int targetNode = newEdge.getMto();
+                        
+                        // 1. 变灰旧的红边
+                        if (currentPathEdges.containsKey(targetNode)) {
+                            String oldKey = currentPathEdges.get(targetNode);
+                            if (edges.containsKey(oldKey) && !oldKey.equals(stepEdgeKey)) {
+                                EdgeUI oldUI = edges.get(oldKey);
+                                oldUI.line.setStroke(Color.LIGHTGRAY);
+                                oldUI.line.setStrokeWidth(2);
+                            }
+                        }
+                        
+                        // 2. 变红新边
+                        highlightEdge(newEdge, Color.RED);
+                        currentPathEdges.put(targetNode, stepEdgeKey);
+                        highlightNode(targetNode, Color.LIGHTGREEN);
+                        break;
+                }
+            });
+            currentAnimation.getKeyFrames().add(kf);
+        }
+        currentAnimation.play();
+    }
+
+    private void highlightNode(int id, Color color) {
+        Circle c = nodes.get(id);
+        if (c != null) {
+            c.setFill(color);
+            Timeline pulse = new Timeline(
+                new KeyFrame(Duration.ZERO, new KeyValue(c.radiusProperty(), 20)),
+                new KeyFrame(Duration.millis(200), new KeyValue(c.radiusProperty(), 25)),
+                new KeyFrame(Duration.millis(400), new KeyValue(c.radiusProperty(), 20))
+            );
+            pulse.play();
+        }
+    }
+
+    private void highlightEdge(Edge edge, Color color) {
+        if (edge == null) return;
+        int u = edge.getMfrom();
+        int v = edge.getMto();
+        int min = Math.min(u, v);
+        int max = Math.max(u, v);
+        String key = min + "-" + max;
+        EdgeUI ui = edges.get(key);
+        if (ui != null) {
+            ui.line.setStroke(color);
+            if (color.equals(Color.LIGHTGRAY) || color.equals(Color.GRAY)) {
+                ui.line.setStrokeWidth(2);
+            } else {
+                ui.line.setStrokeWidth(4);
+            }
+        }
+    }
     
     private void animatePath(List<Integer> path) {
         if (path.size() < 1) return;
-        Timeline timeline = new Timeline();
+        currentAnimation = new Timeline();
         for (int i = 0; i < path.size(); i++) {
             final int index = i;
             final int vertexId = path.get(index);
@@ -243,7 +376,7 @@ public class MatrixGraphUI {
                 Circle c = nodes.get(vertexId);
                 if (c != null) { c.setFill(Color.GOLD); c.setRadius(25); }
             });
-            timeline.getKeyFrames().add(kfVertex);
+            currentAnimation.getKeyFrames().add(kfVertex);
             if (i < path.size() - 1) {
                 final int nextVertexId = path.get(i + 1);
                 KeyFrame kfEdge = new KeyFrame(Duration.millis(i * 800 + 400), e -> {
@@ -255,10 +388,10 @@ public class MatrixGraphUI {
                         if (revEdgeUI != null) { revEdgeUI.line.setStroke(Color.RED); revEdgeUI.line.setStrokeWidth(4); }
                     }
                 });
-                timeline.getKeyFrames().add(kfEdge);
+                currentAnimation.getKeyFrames().add(kfEdge);
             }
         }
-        timeline.play();
+        currentAnimation.play();
     }
 
     private void resetStyles() {
@@ -419,7 +552,6 @@ public class MatrixGraphUI {
         }
     }
     
-    // 【修改】保存为 DSL 格式 (.txt)
     public void saveGraph() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("保存邻接矩阵图 (DSL)");
@@ -431,7 +563,6 @@ public class MatrixGraphUI {
         
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
             int n = graph.verticesNumber();
-            // 遍历矩阵，只保存 i < j 且 weight > 0 的边
             for (int i = 0; i < n; i++) {
                 if (!graph.isVertexExists(i)) continue;
                 for (int j = i + 1; j < n; j++) {
@@ -449,7 +580,6 @@ public class MatrixGraphUI {
         }
     }
     
-    // 【修改】加载 DSL 格式 (.txt)
     public void loadGraph() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("打开图文件 (DSL)");

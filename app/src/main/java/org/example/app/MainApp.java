@@ -41,36 +41,30 @@ public class MainApp extends Application {
     public void start(Stage primaryStage) {
         BorderPane root = new BorderPane();
 
-        // ==================== 顶部区域 ====================
         HBox topPane = new HBox(15);
         topPane.setPadding(new Insets(15));
         topPane.setStyle("-fx-background-color: linear-gradient(to right, #e3f2fd, #f3e5f5);");
 
-        // 1. 左上
         leftTopPane = new VBox(12);
         leftTopPane.setPadding(new Insets(15));
         leftTopPane.setPrefWidth(250);
         leftTopPane.setStyle("-fx-background-color: white; -fx-border-color: #bbdefb; -fx-border-radius: 8; -fx-background-radius: 8; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 5, 0, 0, 2);");
 
-        // 2. 中上
         rightTopPane = new VBox(12);
         rightTopPane.setPadding(new Insets(15));
         rightTopPane.setPrefWidth(600); 
         rightTopPane.setStyle("-fx-background-color: white; -fx-border-color: #bbdefb; -fx-border-radius: 8; -fx-background-radius: 8; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 5, 0, 0, 2);");
 
-        // 3. 右上
         aiPane = initAIPanel(); 
 
         topPane.getChildren().addAll(leftTopPane, rightTopPane, aiPane);
         HBox.setHgrow(aiPane, Priority.ALWAYS);
 
-        // ==================== 下半部分 ====================
         VBox bottomContainer = new VBox();
         bottomContainer.setPrefHeight(600);
         VBox.setVgrow(bottomContainer, Priority.ALWAYS);
         
         bottomPane = new Pane();
-        // 绑定高度，确保 bottomPane 填满剩余空间
         bottomPane.prefHeightProperty().bind(bottomContainer.heightProperty());
         bottomPane.setStyle("-fx-border-color: #bbdefb; -fx-border-radius: 8; -fx-background-color: linear-gradient(to bottom, #fafafa, #ffffff); -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 8, 0, 0, 3);");
         
@@ -79,7 +73,6 @@ public class MainApp extends Application {
         root.setTop(topPane);
         root.setCenter(bottomContainer);
 
-        // ==================== 初始化 ====================
         typeSelector = new ComboBox<>();
         typeSelector.getItems().addAll(
                 "Selection Sort", "Insertion Sort", "Quick Sort",
@@ -398,10 +391,12 @@ public class MainApp extends Application {
         Button bfsBtn = createStyledButton("BFS", "#4caf50");
         Button dfsBtn = createStyledButton("DFS", "#2196f3");
         Button mstBtn = createStyledButton("MST", "#ff9800");
-        Button dijBtn = createStyledButton("Dijkstra", "#e91e63");
         algoBox.getChildren().addAll(startT, endT, bfsBtn, dfsBtn);
+        
         HBox algoBox2 = new HBox(5);
-        algoBox2.getChildren().addAll(mstBtn, dijBtn);
+        Button dijBtn = createStyledButton("Dijkstra(单)", "#e91e63");
+        Button dijAllBtn = createStyledButton("Dijkstra(全)", "#c2185b");
+        algoBox2.getChildren().addAll(mstBtn, dijBtn, dijAllBtn);
 
         Label dslLabel = new Label("DSL 手动输入:");
         dslLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
@@ -429,6 +424,7 @@ public class MainApp extends Application {
         dfsBtn.setOnAction(e -> ui.performDFS(startT.getText()));
         mstBtn.setOnAction(e -> ui.performMST());
         dijBtn.setOnAction(e -> ui.performDijkstra(startT.getText(), endT.getText()));
+        dijAllBtn.setOnAction(e -> ui.performDijkstraAll(startT.getText()));
 
         pane.getChildren().addAll(
             new Label("边管理:"), edgeInputs, 
@@ -463,8 +459,11 @@ public class MainApp extends Application {
         HBox algoBox = new HBox(5);
         TextField startT = new TextField(); startT.setPromptText("Start"); startT.setPrefWidth(50);
         TextField endT = new TextField(); endT.setPromptText("End"); endT.setPrefWidth(50);
-        Button dijBtn = createStyledButton("Dijkstra最短路", "#e91e63");
-        algoBox.getChildren().addAll(startT, endT, dijBtn);
+        
+        Button dijBtn = createStyledButton("最短路(单)", "#e91e63");
+        Button dijAllBtn = createStyledButton("最短路(全)", "#c2185b");
+        
+        algoBox.getChildren().addAll(startT, endT, dijBtn, dijAllBtn);
 
         TextArea mDslArea = new TextArea();
         mDslArea.setPromptText("手动输入 DSL...");
@@ -494,6 +493,7 @@ public class MainApp extends Application {
         mRenderDslBtn.setOnAction(ev -> ui.renderFromDSL(mDslArea.getText()));
         
         dijBtn.setOnAction(e -> ui.performDijkstra(startT.getText(), endT.getText()));
+        dijAllBtn.setOnAction(e -> ui.performDijkstraAll(startT.getText()));
 
         pane.getChildren().addAll(
             new Label("顶点管理:"), vertexInputs,
