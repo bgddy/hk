@@ -405,6 +405,16 @@ public class MainApp extends Application {
         // 将 Kruskal 和 Prim 加入布局
         algoBox2.getChildren().addAll(kruskalBtn, primBtn, dijBtn, dijAllBtn);
 
+        // === 新增：动画控制按钮 ===
+        Label controlLabel = new Label("动画控制:");
+        controlLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
+        HBox controlBox = new HBox(5);
+        Button playBtn = createStyledButton("播放", "#4caf50");
+        Button pauseBtn = createStyledButton("暂停", "#ff9800");
+        Button nextBtn = createStyledButton("下一步", "#2196f3");
+        Button resetBtn = createStyledButton("重置", "#f44336");
+        controlBox.getChildren().addAll(playBtn, pauseBtn, nextBtn, resetBtn);
+
         Label dslLabel = new Label("DSL 手动输入:");
         dslLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
         TextArea dslArea = new TextArea();
@@ -437,11 +447,18 @@ public class MainApp extends Application {
         dijBtn.setOnAction(e -> ui.performDijkstra(startT.getText(), endT.getText()));
         dijAllBtn.setOnAction(e -> ui.performDijkstraAll(startT.getText()));
 
+        // === 绑定控制按钮 ===
+        playBtn.setOnAction(e -> ui.play());
+        pauseBtn.setOnAction(e -> ui.pause());
+        nextBtn.setOnAction(e -> ui.nextStep());
+        resetBtn.setOnAction(e -> ui.resetAnimation());
+
         pane.getChildren().addAll(
             new Label("边管理:"), edgeInputs, 
             new Separator(), graphManageLabel, graphManagementButtons,
             new Separator(), dslLabel, dslArea, renderDslBtn,
-            new Separator(), algoLabel, algoBox, algoBox2
+            new Separator(), algoLabel, algoBox, algoBox2,
+            new Separator(), controlLabel, controlBox // 添加控制面板
         );
     }
 
@@ -535,7 +552,7 @@ public class MainApp extends Application {
             case "#607d8b": return "#455a64";
             case "#e91e63": return "#c2185b";
             case "#009688": return "#00796b";
-            case "#ff5722": return "#e64a19"; // Prim 按钮的深色
+            case "#ff5722": return "#e64a19";
             default: return color;
         }
     }
