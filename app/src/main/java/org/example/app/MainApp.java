@@ -388,15 +388,22 @@ public class MainApp extends Application {
         HBox algoBox = new HBox(5);
         TextField startT = new TextField(); startT.setPromptText("Start"); startT.setPrefWidth(50);
         TextField endT = new TextField(); endT.setPromptText("End"); endT.setPrefWidth(50);
+        
         Button bfsBtn = createStyledButton("BFS", "#4caf50");
         Button dfsBtn = createStyledButton("DFS", "#2196f3");
-        Button mstBtn = createStyledButton("MST", "#ff9800");
+        
+        // === 修改: 添加 Kruskal 和 Prim 按钮 ===
+        Button kruskalBtn = createStyledButton("Kruskal", "#ff9800");
+        Button primBtn = createStyledButton("Prim", "#ff5722");
+        
         algoBox.getChildren().addAll(startT, endT, bfsBtn, dfsBtn);
         
         HBox algoBox2 = new HBox(5);
         Button dijBtn = createStyledButton("Dijkstra(单)", "#e91e63");
         Button dijAllBtn = createStyledButton("Dijkstra(全)", "#c2185b");
-        algoBox2.getChildren().addAll(mstBtn, dijBtn, dijAllBtn);
+        
+        // 将 Kruskal 和 Prim 加入布局
+        algoBox2.getChildren().addAll(kruskalBtn, primBtn, dijBtn, dijAllBtn);
 
         Label dslLabel = new Label("DSL 手动输入:");
         dslLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
@@ -422,7 +429,11 @@ public class MainApp extends Application {
 
         bfsBtn.setOnAction(e -> ui.performBFS(startT.getText()));
         dfsBtn.setOnAction(e -> ui.performDFS(startT.getText()));
-        mstBtn.setOnAction(e -> ui.performMST());
+        
+        // === 绑定 MST 事件 ===
+        kruskalBtn.setOnAction(e -> ui.performMST());
+        primBtn.setOnAction(e -> ui.performPrim());
+        
         dijBtn.setOnAction(e -> ui.performDijkstra(startT.getText(), endT.getText()));
         dijAllBtn.setOnAction(e -> ui.performDijkstraAll(startT.getText()));
 
@@ -524,6 +535,7 @@ public class MainApp extends Application {
             case "#607d8b": return "#455a64";
             case "#e91e63": return "#c2185b";
             case "#009688": return "#00796b";
+            case "#ff5722": return "#e64a19"; // Prim 按钮的深色
             default: return color;
         }
     }

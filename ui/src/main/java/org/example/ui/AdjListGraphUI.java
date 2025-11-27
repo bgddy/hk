@@ -248,6 +248,27 @@ public class AdjListGraphUI {
         adjListDisplay.setText(graph.getAdjListString() + "\n\n[Kruskal] 最小生成树已生成。");
     }
 
+    // === 新增 Prim 方法 ===
+    public void performPrim() {
+        stopAnimation();
+        resetStyles();
+        String[] primCode = {
+            "// Prim MST Algorithm",
+            "1. PQ.poll() min node u",
+            "2. Add edge (parent[u], u) to MST",
+            "3. For each neighbor v of u:",
+            "4.   If weight < dist[v]: update dist",
+            "5.   Else: ignore"
+        };
+        setCode(primCode);
+        
+        prim p = new prim(graph);
+        Edge[] mst = p.generateMST();
+        
+        animateSteps(p.getSteps(), "Prim");
+        adjListDisplay.setText(graph.getAdjListString() + "\n\n[Prim] 最小生成树已生成。");
+    }
+
     public void performDijkstra(String startText, String endText) {
         stopAnimation();
         resetStyles();
@@ -275,12 +296,9 @@ public class AdjListGraphUI {
             }
             
             Dijkstra dijkstra = new Dijkstra(graph);
-            // -1 表示不提前结束，跑完所有点
             dijkstra.findShortestPath(start, -1); 
             
             adjListDisplay.setText(dijkstra.getAllPathsResult(start));
-            
-            // 使用 Dijkstra 模式播放动画
             animateSteps(dijkstra.getSteps(), "Dijkstra");
             
         } catch (NumberFormatException e) {
@@ -304,8 +322,7 @@ public class AdjListGraphUI {
         
         currentAnimation.getKeyFrames().add(new KeyFrame(Duration.ZERO, e -> highlightCode(0)));
         
-        // [关键修复]：记录当前最短路径树上的边 (TargetNodeID -> EdgeKey)
-        // 用于防止后续的检查操作覆盖红色高亮
+        // 记录当前最短路径树上的边 (TargetNodeID -> EdgeKey)
         Map<Integer, String> currentPathEdges = new HashMap<>();
         
         for (int i = 0; i < steps.size(); i++) {
@@ -315,7 +332,6 @@ public class AdjListGraphUI {
             KeyFrame kf = new KeyFrame(Duration.millis(time), e -> {
                 highlightCode(step.getLineIndex());
                 
-                // 计算当前边的唯一 Key
                 String stepEdgeKey = "";
                 if (step.getEdge() != null) {
                     int u = step.getEdge().getMfrom();
@@ -331,7 +347,7 @@ public class AdjListGraphUI {
                         case RELAX_SUCCESS: highlightEdge(step.getEdge(), Color.RED); break; 
                     }
                 } 
-                // === Dijkstra 动画修复 ===
+                // === Dijkstra ===
                 else if (algoType.equals("Dijkstra")) {
                     switch (step.getType()) {
                         case VISIT: 
@@ -339,13 +355,10 @@ public class AdjListGraphUI {
                             break;
                             
                         case VISIT_EDGE:
-                            // [关键] 只有当这条边 不是 当前已确认的红边时，才允许变色
                             if (!currentPathEdges.containsValue(stepEdgeKey)) {
-                                // Line 5: 检查中 (蓝)
                                 if (step.getLineIndex() == 5) {
                                     highlightEdge(step.getEdge(), Color.CORNFLOWERBLUE);
                                 } 
-                                // Line 6: 检查结束/未更新 (灰)
                                 else if (step.getLineIndex() == 6) {
                                     highlightEdge(step.getEdge(), Color.LIGHTGRAY);
                                 }
@@ -353,39 +366,40 @@ public class AdjListGraphUI {
                             break;
                             
                         case RELAX_SUCCESS:
-                            // 松弛成功: 发现更短路径
                             Edge newEdge = step.getEdge();
                             int targetNode = newEdge.getMto();
                             
-                            // 1. [关键] 如果该节点之前已经有一条红边，把它变回灰色 (因为被新路径替代了)
                             if (currentPathEdges.containsKey(targetNode)) {
                                 String oldKey = currentPathEdges.get(targetNode);
-                                // 通过 edges Map 找到旧边的 UI 对象并变灰
                                 if (edges.containsKey(oldKey) && !oldKey.equals(stepEdgeKey)) {
                                     EdgeUI oldUI = edges.get(oldKey);
                                     oldUI.line.setStroke(Color.LIGHTGRAY);
                                     oldUI.line.setStrokeWidth(2);
                                 }
                             }
-                            
-                            // 2. 将新边变红
                             highlightEdge(newEdge, Color.RED);
-                            // 3. 更新记录
                             currentPathEdges.put(targetNode, stepEdgeKey);
-                            // 4. 目标节点变绿
                             highlightNode(targetNode, Color.LIGHTGREEN);
                             break;
                     }
                 }
-                else if (algoType.equals("MST")) {
+                // === 合并 Kruskal 和 Prim ===
+                else if (algoType.equals("MST") || algoType.equals("Prim")) {
                     switch (step.getType()) {
-                        case CHECK_EDGE: highlightEdge(step.getEdge(), Color.GOLD); break;
+                        case VISIT: 
+                            if(step.getVertexId() != -1) highlightNode(step.getVertexId(), Color.ORANGE);
+                            break;
+                        case CHECK_EDGE: 
+                            highlightEdge(step.getEdge(), Color.GOLD); 
+                            break;
                         case ADD_EDGE:
                             highlightEdge(step.getEdge(), Color.GREEN);
                             highlightNode(step.getEdge().getMfrom(), Color.LIGHTGREEN);
                             highlightNode(step.getEdge().getMto(), Color.LIGHTGREEN);
                             break;
-                        case REJECT_EDGE: highlightEdge(step.getEdge(), Color.LIGHTGRAY); break;
+                        case REJECT_EDGE: 
+                            highlightEdge(step.getEdge(), Color.LIGHTGRAY); 
+                            break;
                     }
                 }
             });
@@ -418,7 +432,6 @@ public class AdjListGraphUI {
         EdgeUI ui = edges.get(key);
         if (ui != null) {
             ui.line.setStroke(color);
-            // 如果是灰色，恢复细线；如果是高亮色，加粗
             if (color.equals(Color.LIGHTGRAY) || color.equals(Color.GRAY)) {
                 ui.line.setStrokeWidth(2);
             } else {
