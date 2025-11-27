@@ -13,7 +13,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.text.Text;
-import javafx.scene.transform.Scale;
 import javafx.stage.FileChooser;
 import javafx.util.Duration;
 import org.example.core.Dijkstra;
@@ -22,11 +21,7 @@ import org.example.core.MatrixGraph;
 import org.example.core.TraversalStep;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class MatrixGraphUI {
 
@@ -56,7 +51,6 @@ public class MatrixGraphUI {
         root = new BorderPane();
         root.setPrefSize(1050, 600);
         
-        // 左侧：绘图区域
         graphPane = new Pane();
         graphPane.setPrefSize(2000, 2000); 
         graphPane.setStyle("-fx-background-color: #f8f9fa;");
@@ -81,7 +75,6 @@ public class MatrixGraphUI {
         centerStack.getChildren().addAll(graphScrollPane, zoomControls);
         StackPane.setAlignment(zoomControls, Pos.TOP_RIGHT);
 
-        // 右侧：数据与日志
         VBox matrixPane = new VBox(10);
         matrixPane.setPadding(new Insets(15));
         matrixPane.setPrefHeight(350);
@@ -110,6 +103,9 @@ public class MatrixGraphUI {
         root.setCenter(centerStack);
         root.setRight(rightPane);
         
+        // 初始加载
+        for (int i = 0; i < 5; i++) addVertex(i, -1, -1);
+        applyCircularLayout();
         updateMatrixDisplay();
         centerContent(); 
     }
@@ -133,7 +129,30 @@ public class MatrixGraphUI {
         double newScale = currentScale * factor;
         if (newScale >= 0.1 && newScale <= 10.0) {
             currentScale = newScale;
-            updateNodePositions();
+            
+            // Scale existing positions relative to center
+            double centerX = graphPane.getPrefWidth() / 2;
+            double centerY = graphPane.getPrefHeight() / 2;
+            
+            for (Integer id : nodes.keySet()) {
+                Circle c = nodes.get(id);
+                if (c != null) {
+                    double dx = c.getCenterX() - centerX;
+                    double dy = c.getCenterY() - centerY;
+                    double newX = centerX + dx * factor;
+                    double newY = centerY + dy * factor;
+                    
+                    // Clamp
+                    newX = Math.max(20, Math.min(graphPane.getPrefWidth() - 20, newX));
+                    newY = Math.max(20, Math.min(graphPane.getPrefHeight() - 20, newY));
+                    
+                    c.setCenterX(newX);
+                    c.setCenterY(newY);
+                    Text t = nodeLabels.get(id);
+                    if (t != null) { t.setX(newX - 6); t.setY(newY + 6); }
+                }
+            }
+            updateAllEdges();
         }
     }
 
@@ -146,6 +165,9 @@ public class MatrixGraphUI {
         edges.clear();
         graph.generateRandomGraph();
         int n = graph.verticesNumber();
+        
+        applyCircularLayout(); // Reset layout for random graph
+        
         for (int i = 0; i < n; i++) {
             if (!graph.isVertexExists(i)) continue;
             for (int j = 0; j < n; j++) {
@@ -156,7 +178,6 @@ public class MatrixGraphUI {
                 }
             }
         }
-        updateNodePositions();
         updateMatrixDisplay();
         matrixDisplay.setText(matrixDisplay.getText() + "\n\n[随机图生成完毕]");
     }
@@ -166,9 +187,23 @@ public class MatrixGraphUI {
         clearInternalGraphState();
         String[] lines = dslText.split("\n");
         List<int[]> edgesToAdd = new ArrayList<>();
+        Map<Integer, double[]> loadedPositions = new HashMap<>();
+
         for (String line : lines) {
             line = line.trim();
             if (line.isEmpty() || line.startsWith("#")) continue;
+            
+            if (line.startsWith("POS")) {
+                try {
+                    String[] parts = line.split(" ");
+                    int id = Integer.parseInt(parts[1]);
+                    double x = Double.parseDouble(parts[2]);
+                    double y = Double.parseDouble(parts[3]);
+                    loadedPositions.put(id, new double[]{x, y});
+                } catch (Exception e) {}
+                continue;
+            }
+
             if (line.contains("->")) {
                 try {
                     String[] parts = line.split("->");
@@ -181,21 +216,36 @@ public class MatrixGraphUI {
                         w = Integer.parseInt(vw[1].trim());
                     } else { v = Integer.parseInt(rightPart); }
                     while (graph.verticesNumber() <= Math.max(u, v)) { graph.addVertex(); }
-                    addVertex(u); addVertex(v);
+                    addVertex(u, -1, -1); addVertex(v, -1, -1);
                     edgesToAdd.add(new int[]{u, v, w});
                 } catch (Exception e) { System.out.println("DSL 解析错误: " + line); }
             }
         }
+        
+        if (!loadedPositions.isEmpty()) {
+            for (Integer id : loadedPositions.keySet()) {
+                if (!nodes.containsKey(id)) addVertex(id, -1, -1);
+                Circle c = nodes.get(id);
+                double[] pos = loadedPositions.get(id);
+                c.setCenterX(pos[0]);
+                c.setCenterY(pos[1]);
+                Text t = nodeLabels.get(id);
+                if(t!=null) { t.setX(pos[0]-6); t.setY(pos[1]+6); }
+            }
+        } else {
+            applyCircularLayout();
+        }
+
         for (int[] edge : edgesToAdd) { addEdge(edge[0], edge[1], edge[2]); }
-        updateNodePositions();
+        updateAllEdges();
         updateMatrixDisplay();
         matrixDisplay.setText(matrixDisplay.getText() + "\n\n[DSL 渲染完成]");
     }
 
     public void resetToDefault() {
         clearInternalGraphState();
-        for (int i = 0; i < 5; i++) { addVertex(i); }
-        updateNodePositions();
+        for (int i = 0; i < 5; i++) { addVertex(i, -1, -1); }
+        applyCircularLayout();
         updateMatrixDisplay();
         matrixDisplay.setText(matrixDisplay.getText() + "\n\n[已恢复初始设置]");
         centerContent();
@@ -211,6 +261,7 @@ public class MatrixGraphUI {
         edges.clear();
     }
 
+    // Dijkstra Methods
     public void performDijkstra(String startText, String endText) {
         resetStyles();
         stopAnimation();
@@ -247,17 +298,12 @@ public class MatrixGraphUI {
                 matrixDisplay.setText("错误: 顶点不存在");
                 return;
             }
-            
             Dijkstra dijkstra = new Dijkstra(graph);
             dijkstra.findShortestPath(start, -1); 
-            
             StringBuilder sb = new StringBuilder(graph.getMatrixString());
             sb.append("\n\n").append(dijkstra.getAllPathsResult(start));
-            
             matrixDisplay.setText(sb.toString());
-            
             animateSteps(dijkstra.getSteps());
-            
         } catch (NumberFormatException e) {
             matrixDisplay.setText("错误: 请输入有效的起点ID");
         }
@@ -270,13 +316,10 @@ public class MatrixGraphUI {
         }
     }
 
-    // ================= 修复后的动画逻辑 =================
     private void animateSteps(List<TraversalStep> steps) {
         if (steps == null || steps.isEmpty()) return;
         currentAnimation = new Timeline();
         double delayPerStep = 800;
-        
-        // 记录当前最短路径树上的边 (TargetNodeID -> EdgeKey)
         Map<Integer, String> currentPathEdges = new HashMap<>();
         
         for (int i = 0; i < steps.size(); i++) {
@@ -284,7 +327,6 @@ public class MatrixGraphUI {
             double time = (i + 1) * delayPerStep;
             
             KeyFrame kf = new KeyFrame(Duration.millis(time), e -> {
-                // 计算当前边的 Key
                 String stepEdgeKey = "";
                 if (step.getEdge() != null) {
                     int u = step.getEdge().getMfrom();
@@ -296,24 +338,15 @@ public class MatrixGraphUI {
                     case VISIT: 
                         if(step.getVertexId() != -1) highlightNode(step.getVertexId(), Color.ORANGE);
                         break;
-                        
                     case VISIT_EDGE:
-                        // 只有当这条边 不是 当前红边时，才变蓝/灰
                         if (!currentPathEdges.containsValue(stepEdgeKey)) {
-                            if (step.getLineIndex() == 5) {
-                                highlightEdge(step.getEdge(), Color.CORNFLOWERBLUE);
-                            } 
-                            else if (step.getLineIndex() == 6) {
-                                highlightEdge(step.getEdge(), Color.LIGHTGRAY);
-                            }
+                            if (step.getLineIndex() == 5) highlightEdge(step.getEdge(), Color.CORNFLOWERBLUE);
+                            else if (step.getLineIndex() == 6) highlightEdge(step.getEdge(), Color.LIGHTGRAY);
                         }
                         break;
-                        
                     case RELAX_SUCCESS:
                         Edge newEdge = step.getEdge();
                         int targetNode = newEdge.getMto();
-                        
-                        // 1. 变灰旧的红边
                         if (currentPathEdges.containsKey(targetNode)) {
                             String oldKey = currentPathEdges.get(targetNode);
                             if (edges.containsKey(oldKey) && !oldKey.equals(stepEdgeKey)) {
@@ -322,8 +355,6 @@ public class MatrixGraphUI {
                                 oldUI.line.setStrokeWidth(2);
                             }
                         }
-                        
-                        // 2. 变红新边
                         highlightEdge(newEdge, Color.RED);
                         currentPathEdges.put(targetNode, stepEdgeKey);
                         highlightNode(targetNode, Color.LIGHTGREEN);
@@ -404,18 +435,35 @@ public class MatrixGraphUI {
     }
 
     public void addVertex(int id) {
+        addVertex(id, -1, -1);
+    }
+
+    private void addVertex(int id, double x, double y) {
         if (nodes.containsKey(id)) return;
         if (id >= graph.verticesNumber()) { while (graph.verticesNumber() <= id) { graph.addVertex(); } }
         graph.setVertexExists(id, true);
         Circle circle = new Circle(20, Color.LIGHTBLUE);
         circle.setStroke(Color.BLACK);
         circle.setStrokeWidth(2);
+        
+        if (x == -1 || y == -1) {
+            circle.setCenterX(1000 + (Math.random()-0.5)*200);
+            circle.setCenterY(1000 + (Math.random()-0.5)*200);
+        } else {
+            circle.setCenterX(x);
+            circle.setCenterY(y);
+        }
+        
         enableDrag(circle, id);
         Text label = new Text(String.valueOf(id));
+        label.setX(circle.getCenterX() - 6); 
+        label.setY(circle.getCenterY() + 6);
+        label.setMouseTransparent(true); // 修复画布误触的关键
+        
         graphPane.getChildren().addAll(circle, label);
         nodes.put(id, circle);
         nodeLabels.put(id, label);
-        updateNodePositions();
+        
         updateMatrixDisplay();
     }
     
@@ -426,6 +474,7 @@ public class MatrixGraphUI {
             dragDelta.x = circle.getCenterX() - e.getX();
             dragDelta.y = circle.getCenterY() - e.getY();
             circle.setCursor(javafx.scene.Cursor.MOVE);
+            e.consume();
         });
         circle.setOnMouseDragged(e -> {
             double newX = e.getX() + dragDelta.x;
@@ -436,6 +485,7 @@ public class MatrixGraphUI {
             Text label = nodeLabels.get(id);
             if (label != null) { label.setX(newX - 6); label.setY(newY + 6); }
             updateConnectedEdges(id);
+            e.consume();
         });
         circle.setOnMouseReleased(e -> circle.setCursor(javafx.scene.Cursor.HAND));
     }
@@ -446,17 +496,52 @@ public class MatrixGraphUI {
             int from = Integer.parseInt(parts[0]);
             int to = Integer.parseInt(parts[1]);
             if (from == id || to == id) {
-                Circle c1 = nodes.get(from); Circle c2 = nodes.get(to);
-                if(c1 != null && c2 != null) {
-                    Line line = entry.getValue().line;
-                    line.setStartX(c1.getCenterX()); line.setStartY(c1.getCenterY());
-                    line.setEndX(c2.getCenterX());   line.setEndY(c2.getCenterY());
-                    Text label = entry.getValue().label;
-                    label.setX((c1.getCenterX() + c2.getCenterX()) / 2);
-                    label.setY((c1.getCenterY() + c2.getCenterY()) / 2 - 5);
-                }
+                updateSingleEdge(entry.getValue(), from, to);
             }
         }
+    }
+    
+    private void updateAllEdges() {
+        for (Map.Entry<String, EdgeUI> entry : edges.entrySet()) {
+            String[] parts = entry.getKey().split("-");
+            updateSingleEdge(entry.getValue(), Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+        }
+    }
+    
+    private void updateSingleEdge(EdgeUI ui, int v1, int v2) {
+        Circle c1 = nodes.get(v1); Circle c2 = nodes.get(v2);
+        if(c1 != null && c2 != null) {
+            Line line = ui.line;
+            line.setStartX(c1.getCenterX()); line.setStartY(c1.getCenterY());
+            line.setEndX(c2.getCenterX());   line.setEndY(c2.getCenterY());
+            ui.label.setX((c1.getCenterX() + c2.getCenterX()) / 2);
+            ui.label.setY((c1.getCenterY() + c2.getCenterY()) / 2 - 5);
+        }
+    }
+
+    private void applyCircularLayout() {
+        int n = nodes.size();
+        if (n == 0) return;
+        double baseRadius = Math.max(200, n * 20);
+        double radius = baseRadius * currentScale;
+        double centerX = graphPane.getPrefWidth() / 2;
+        double centerY = graphPane.getPrefHeight() / 2;
+        
+        int i = 0;
+        List<Integer> sortedKeys = nodes.keySet().stream().sorted().toList();
+        for (Integer vertexId : sortedKeys) {
+            double angle = 2 * Math.PI * i / n - Math.PI / 2;
+            double x = centerX + radius * Math.cos(angle);
+            double y = centerY + radius * Math.sin(angle);
+            Circle circle = nodes.get(vertexId);
+            if (circle != null) {
+                circle.setCenterX(x); circle.setCenterY(y);
+                Text t = nodeLabels.get(vertexId);
+                if (t != null) { t.setX(x - 6); t.setY(y + 6); }
+            }
+            i++;
+        }
+        updateAllEdges();
     }
 
     public void removeVertex(int id) {
@@ -479,7 +564,6 @@ public class MatrixGraphUI {
                 it.remove();
             }
         }
-        updateNodePositions();
         updateMatrixDisplay();
     }
 
@@ -512,45 +596,6 @@ public class MatrixGraphUI {
         if (edgeUI != null) { graphPane.getChildren().removeAll(edgeUI.line, edgeUI.label); }
         updateMatrixDisplay();
     }
-
-    private void updateNodePositions() {
-        int n = nodes.size();
-        if (n == 0) return;
-        double baseRadius = Math.max(200, n * 20);
-        double radius = baseRadius * currentScale;
-        double requiredSize = Math.max(2000, radius * 2 + 400);
-        graphPane.setPrefSize(requiredSize, requiredSize);
-        double centerX = requiredSize / 2;
-        double centerY = requiredSize / 2;
-        int i = 0;
-        List<Integer> sortedKeys = nodes.keySet().stream().sorted().toList();
-        for (Integer vertexId : sortedKeys) {
-            double angle = 2 * Math.PI * i / n - Math.PI / 2;
-            double x = centerX + radius * Math.cos(angle);
-            double y = centerY + radius * Math.sin(angle);
-            Circle circle = nodes.get(vertexId);
-            if (circle != null) {
-                circle.setCenterX(x); circle.setCenterY(y);
-                Text t = nodeLabels.get(vertexId);
-                if (t != null) { t.setX(x - 6); t.setY(y + 6); }
-            }
-            i++;
-        }
-        for (Map.Entry<String, EdgeUI> entry : edges.entrySet()) {
-            String[] parts = entry.getKey().split("-");
-            int from = Integer.parseInt(parts[0]);
-            int to = Integer.parseInt(parts[1]);
-            Circle c1 = nodes.get(from); Circle c2 = nodes.get(to);
-            if (c1 != null && c2 != null) {
-                Line l = entry.getValue().line;
-                l.setStartX(c1.getCenterX()); l.setStartY(c1.getCenterY());
-                l.setEndX(c2.getCenterX());   l.setEndY(c2.getCenterY());
-                Text t = entry.getValue().label;
-                t.setX((c1.getCenterX() + c2.getCenterX()) / 2);
-                t.setY((c1.getCenterY() + c2.getCenterY()) / 2 - 5);
-            }
-        }
-    }
     
     public void saveGraph() {
         FileChooser fileChooser = new FileChooser();
@@ -562,6 +607,12 @@ public class MatrixGraphUI {
         if (file == null) return;
         
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+            writer.write("# Vertices Positions\n");
+            for (Map.Entry<Integer, Circle> entry : nodes.entrySet()) {
+                writer.write(String.format("POS %d %.2f %.2f\n", entry.getKey(), entry.getValue().getCenterX(), entry.getValue().getCenterY()));
+            }
+            
+            writer.write("\n# Edges\n");
             int n = graph.verticesNumber();
             for (int i = 0; i < n; i++) {
                 if (!graph.isVertexExists(i)) continue;
