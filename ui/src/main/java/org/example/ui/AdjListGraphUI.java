@@ -144,7 +144,6 @@ public class AdjListGraphUI {
         });
     }
 
-    // ... (省略 setCode, highlightCode, createZoomButton 方法，保持不变) ...
     private void setCode(String[] lines) {
         codeListView.getItems().clear();
         codeListView.getItems().addAll(lines);
@@ -169,7 +168,7 @@ public class AdjListGraphUI {
         return btn;
     }
 
-    // 优化缩放：基于中心点缩放，而不是重置布局
+    // 优化缩放：基于中心点缩放
     private void zoom(double factor) {
         double newScale = currentScale * factor;
         if (newScale >= 0.1 && newScale <= 10.0) {
@@ -201,8 +200,6 @@ public class AdjListGraphUI {
 
     public BorderPane getPane() { return root; }
 
-    // ... (省略 performBFS, performDFS, performMST, performPrim, performDijkstra, performDijkstraAll 方法，保持不变) ...
-    // 请将之前的算法执行方法（performBFS等）直接复制到这里
     public void performBFS(String startVertexText) {
         stopAnimation(); 
         resetStyles();
@@ -368,7 +365,6 @@ public class AdjListGraphUI {
         }
     }
 
-    // ... (省略 play, pause, nextStep, resetAnimation, stopAnimation, initAnimation, renderStep, highlightNode, highlightEdge, animatePath 方法) ...
     public void play() {
         if (currentSteps == null || currentSteps.isEmpty()) return;
         autoPlayTimeline.play();
@@ -543,29 +539,42 @@ public class AdjListGraphUI {
         currentAnimation.play();
     }
 
-    // === 修改：解析 DSL 时同时解析位置信息 ===
+    // === 修改：解析 DSL 时支持增量更新 ===
     public void renderFromDSL(String dslText) {
         if (dslText == null || dslText.trim().isEmpty()) return;
-        this.graph = new AdjListGraph(5);
-        clearInternalGraphState(); 
-        for (int i = 0; i < 5; i++) addVertexUIOnly(i, -1, -1);
+        
+        // 注释掉清空逻辑，实现增量更新
+        // this.graph = new AdjListGraph(5);
+        // clearInternalGraphState(); 
+        // for (int i = 0; i < 5; i++) addVertexUIOnly(i, -1, -1);
         
         String[] lines = dslText.split("\n");
-        List<int[]> edgesToAdd = new ArrayList<>();
-        Map<Integer, double[]> loadedPositions = new HashMap<>();
 
         for (String line : lines) {
             line = line.trim();
             if (line.isEmpty() || line.startsWith("#")) continue;
             
-            // 解析 POS 指令：POS <id> <x> <y>
+            // 解析 POS 指令
             if (line.startsWith("POS")) {
                 try {
                     String[] parts = line.split(" ");
                     int id = Integer.parseInt(parts[1]);
                     double x = Double.parseDouble(parts[2]);
                     double y = Double.parseDouble(parts[3]);
-                    loadedPositions.put(id, new double[]{x, y});
+                    
+                    // 确保图足够大
+                    while (graph.verticesNumber() <= id) graph.addVertex();
+                    
+                    if (!nodes.containsKey(id)) {
+                        addVertexUIOnly(id, x, y);
+                    } else {
+                        // 更新位置
+                        Circle c = nodes.get(id);
+                        c.setCenterX(x); c.setCenterY(y);
+                        Text t = nodeLabels.get(id);
+                        if(t != null) { t.setX(x-5); t.setY(y+5); }
+                        updateConnectedEdges(id);
+                    }
                 } catch (Exception e) { System.out.println("POS parse error: " + line); }
                 continue;
             }
@@ -582,29 +591,34 @@ public class AdjListGraphUI {
                         v = Integer.parseInt(vw[0].trim());
                         w = Integer.parseInt(vw[1].trim());
                     } else { v = Integer.parseInt(rightPart); }
+                    
                     while (graph.verticesNumber() <= Math.max(u, v)) graph.addVertex(); 
-                    addVertexUIOnly(u, -1, -1); addVertexUIOnly(v, -1, -1);
-                    edgesToAdd.add(new int[]{u, v, w});
+                    if (!nodes.containsKey(u)) addVertexUIOnly(u, -1, -1);
+                    if (!nodes.containsKey(v)) addVertexUIOnly(v, -1, -1);
+
+                    // 检查边是否存在且权重一致
+                    boolean needUpdate = true;
+                    // 在 AdjListGraph 中查找该边
+                    org.example.core.Edge existingEdge = null;
+                    for(org.example.core.Edge e = graph.firstEdge(u); e != null; e = graph.nextEdge(e)) {
+                        if (e.getMto() == v) {
+                            existingEdge = e;
+                            break;
+                        }
+                    }
+                    
+                    if (existingEdge != null && existingEdge.getMweight() == w) {
+                        needUpdate = false;
+                    }
+
+                    if (needUpdate) {
+                        addEdge(u, v, w);
+                    }
+                    
                 } catch (Exception e) {}
             }
         }
         
-        // 应用位置
-        if (!loadedPositions.isEmpty()) {
-            for (Integer id : loadedPositions.keySet()) {
-                if (!nodes.containsKey(id)) addVertexUIOnly(id, -1, -1);
-                Circle c = nodes.get(id);
-                double[] pos = loadedPositions.get(id);
-                c.setCenterX(pos[0]);
-                c.setCenterY(pos[1]);
-                Text t = nodeLabels.get(id);
-                if(t!=null) { t.setX(pos[0]-5); t.setY(pos[1]+5); }
-            }
-        } else {
-            applyCircularLayout(); // 如果没有位置信息，使用默认布局
-        }
-
-        for (int[] edge : edgesToAdd) addEdge(edge[0], edge[1], edge[2]);
         updateAllEdges();
         updateAdjListDisplay();
     }
@@ -629,7 +643,6 @@ public class AdjListGraphUI {
         edges.clear();
     }
 
-    // === 修改：保存时写入位置信息 ===
     public void saveGraph() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("保存图 (DSL)");
@@ -640,13 +653,11 @@ public class AdjListGraphUI {
         if (file == null) return;
         
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
-            // 1. 保存位置
             writer.write("# Vertices Positions\n");
             for (Map.Entry<Integer, Circle> entry : nodes.entrySet()) {
                 writer.write(String.format("POS %d %.2f %.2f\n", entry.getKey(), entry.getValue().getCenterX(), entry.getValue().getCenterY()));
             }
             
-            // 2. 保存边
             writer.write("\n# Edges\n");
             int n = graph.verticesNumber();
             for (int i = 0; i < n; i++) {
@@ -679,6 +690,9 @@ public class AdjListGraphUI {
                     dslContent.append(line).append("\n");
                 }
             }
+            // 清空当前状态后再加载，如果你希望 loadGraph 是完全替换，可以保留 clearInternalGraphState
+            // 但因为我们修改了 renderFromDSL 为增量，如果希望 loadGraph 是覆盖，可以在这里调用 resetToDefault
+            resetToDefault(); 
             renderFromDSL(dslContent.toString());
             System.out.println("DSL 加载成功");
         } catch (Exception ex) { 
@@ -689,7 +703,6 @@ public class AdjListGraphUI {
 
     private void updateAdjListDisplay() { if (graph != null) adjListDisplay.setText(graph.getAdjListString()); }
 
-    // === 修改：添加 addVertexUIOnly 方法支持自定义位置 ===
     private void addVertexUIOnly(int id, double x, double y) {
         if (nodes.containsKey(id)) return;
         Circle circle = new Circle(20, Color.LIGHTGREEN);
@@ -708,8 +721,6 @@ public class AdjListGraphUI {
         Text label = new Text(String.valueOf(id));
         label.setX(circle.getCenterX() - 5);
         label.setY(circle.getCenterY() + 5);
-        
-        // 【关键修改】设置文字鼠标透明，防止拦截拖拽事件导致误触画布移动
         label.setMouseTransparent(true); 
         
         graphPane.getChildren().addAll(circle, label);
@@ -723,7 +734,7 @@ public class AdjListGraphUI {
         circle.setOnMousePressed(e -> {
             dragDelta.x = circle.getCenterX() - e.getX();
             dragDelta.y = circle.getCenterY() - e.getY();
-            e.consume(); // 阻止事件冒泡到 ScrollPane
+            e.consume(); 
         });
         circle.setOnMouseDragged(e -> {
             double newX = Math.max(20, Math.min(graphPane.getPrefWidth()-20, e.getX() + dragDelta.x));
@@ -734,7 +745,7 @@ public class AdjListGraphUI {
             if(label!=null) { label.setX(newX-5); label.setY(newY+5); }
             
             updateConnectedEdges(id);
-            e.consume(); // 阻止事件冒泡
+            e.consume(); 
         });
     }
     
@@ -765,16 +776,23 @@ public class AdjListGraphUI {
         updateAdjListDisplay();
     }
 
+    // === 修改：addEdge 支持更新文本 ===
     public void addEdge(int from, int to, int weight) {
         if (from==to) return;
         graph.setEdge(from, to, weight);
+        
         String key = Math.min(from,to) + "-" + Math.max(from,to);
-        if (!edges.containsKey(key)) {
+        
+        if (edges.containsKey(key)) {
+            // 更新现有文本
+            edges.get(key).label.setText(String.valueOf(weight));
+        } else {
             Line line = new Line(); line.setStrokeWidth(2); line.setStroke(Color.GRAY);
             Text text = new Text(String.valueOf(weight)); text.setFill(Color.DARKRED);
             graphPane.getChildren().add(0, line); graphPane.getChildren().add(text);
             edges.put(key, new EdgeUI(line, text));
         }
+        
         updateConnectedEdges(from);
         updateAdjListDisplay();
     }
@@ -816,7 +834,6 @@ public class AdjListGraphUI {
         }
     }
 
-    // 仅在初始化时使用圆环布局
     private void applyCircularLayout() {
         int n = nodes.size();
         if (n == 0) return;

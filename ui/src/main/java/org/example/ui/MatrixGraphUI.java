@@ -130,7 +130,6 @@ public class MatrixGraphUI {
         if (newScale >= 0.1 && newScale <= 10.0) {
             currentScale = newScale;
             
-            // Scale existing positions relative to center
             double centerX = graphPane.getPrefWidth() / 2;
             double centerY = graphPane.getPrefHeight() / 2;
             
@@ -142,7 +141,6 @@ public class MatrixGraphUI {
                     double newX = centerX + dx * factor;
                     double newY = centerY + dy * factor;
                     
-                    // Clamp
                     newX = Math.max(20, Math.min(graphPane.getPrefWidth() - 20, newX));
                     newY = Math.max(20, Math.min(graphPane.getPrefHeight() - 20, newY));
                     
@@ -166,7 +164,7 @@ public class MatrixGraphUI {
         graph.generateRandomGraph();
         int n = graph.verticesNumber();
         
-        applyCircularLayout(); // Reset layout for random graph
+        applyCircularLayout(); 
         
         for (int i = 0; i < n; i++) {
             if (!graph.isVertexExists(i)) continue;
@@ -182,9 +180,13 @@ public class MatrixGraphUI {
         matrixDisplay.setText(matrixDisplay.getText() + "\n\n[随机图生成完毕]");
     }
 
+    // === 增量更新 DSL ===
     public void renderFromDSL(String dslText) {
         if (dslText == null || dslText.trim().isEmpty()) return;
-        clearInternalGraphState();
+        
+        // 注释掉清空逻辑以支持增量更新
+        // clearInternalGraphState();
+        
         String[] lines = dslText.split("\n");
         List<int[]> edgesToAdd = new ArrayList<>();
         Map<Integer, double[]> loadedPositions = new HashMap<>();
@@ -215,9 +217,15 @@ public class MatrixGraphUI {
                         v = Integer.parseInt(vw[0].trim());
                         w = Integer.parseInt(vw[1].trim());
                     } else { v = Integer.parseInt(rightPart); }
+                    
                     while (graph.verticesNumber() <= Math.max(u, v)) { graph.addVertex(); }
                     addVertex(u, -1, -1); addVertex(v, -1, -1);
-                    edgesToAdd.add(new int[]{u, v, w});
+                    
+                    // 检查是否需要更新（权重不同时才更新）
+                    int currentWeight = graph.getEdge(u, v);
+                    if (currentWeight != w) {
+                        edgesToAdd.add(new int[]{u, v, w});
+                    }
                 } catch (Exception e) { System.out.println("DSL 解析错误: " + line); }
             }
         }
@@ -233,7 +241,10 @@ public class MatrixGraphUI {
                 if(t!=null) { t.setX(pos[0]-6); t.setY(pos[1]+6); }
             }
         } else {
-            applyCircularLayout();
+            // 只有当图是空的或者从零开始时才自动布局
+            if (edges.isEmpty() && loadedPositions.isEmpty()) {
+                applyCircularLayout();
+            }
         }
 
         for (int[] edge : edgesToAdd) { addEdge(edge[0], edge[1], edge[2]); }
@@ -411,13 +422,9 @@ public class MatrixGraphUI {
             if (i < path.size() - 1) {
                 final int nextVertexId = path.get(i + 1);
                 KeyFrame kfEdge = new KeyFrame(Duration.millis(i * 800 + 400), e -> {
-                    String key = vertexId + "-" + nextVertexId;
+                    String key = Math.min(vertexId, nextVertexId) + "-" + Math.max(vertexId, nextVertexId);
                     EdgeUI edgeUI = edges.get(key);
-                    if (edgeUI != null) { edgeUI.line.setStroke(Color.RED); edgeUI.line.setStrokeWidth(4); } else {
-                        String revKey = nextVertexId + "-" + vertexId;
-                        EdgeUI revEdgeUI = edges.get(revKey);
-                        if (revEdgeUI != null) { revEdgeUI.line.setStroke(Color.RED); revEdgeUI.line.setStrokeWidth(4); }
-                    }
+                    if (edgeUI != null) { edgeUI.line.setStroke(Color.RED); edgeUI.line.setStrokeWidth(4); }
                 });
                 currentAnimation.getKeyFrames().add(kfEdge);
             }
@@ -458,7 +465,7 @@ public class MatrixGraphUI {
         Text label = new Text(String.valueOf(id));
         label.setX(circle.getCenterX() - 6); 
         label.setY(circle.getCenterY() + 6);
-        label.setMouseTransparent(true); // 修复画布误触的关键
+        label.setMouseTransparent(true); 
         
         graphPane.getChildren().addAll(circle, label);
         nodes.put(id, circle);
@@ -571,18 +578,28 @@ public class MatrixGraphUI {
         if (!nodes.containsKey(from)) addVertex(from);
         if (!nodes.containsKey(to)) addVertex(to);
         if (!nodes.containsKey(from) || !nodes.containsKey(to)) return;
-        String edgeKey = from + "-" + to;
+        
+        // 关键修复：统一使用 min-max 作为 Key，避免重复添加视觉元素
+        int min = Math.min(from, to);
+        int max = Math.max(from, to);
+        String edgeKey = min + "-" + max;
+        
         if (edges.containsKey(edgeKey)) {
-            EdgeUI oldEdge = edges.get(edgeKey);
-            graphPane.getChildren().removeAll(oldEdge.line, oldEdge.label);
-            edges.remove(edgeKey);
+            // 如果边已存在，直接更新权重文本
+            EdgeUI edgeUI = edges.get(edgeKey);
+            edgeUI.label.setText(String.valueOf(weight));
+            graph.setEdge(from, to, weight); // 确保后端数据也更新
+            return;
         }
+        
         graph.setEdge(from, to, weight);
         Circle c1 = nodes.get(from); Circle c2 = nodes.get(to);
         Line line = new Line(c1.getCenterX(), c1.getCenterY(), c2.getCenterX(), c2.getCenterY());
         line.setStrokeWidth(2); line.setStroke(Color.GRAY);
         Text text = new Text((c1.getCenterX() + c2.getCenterX()) / 2, (c1.getCenterY() + c2.getCenterY()) / 2 - 5, String.valueOf(weight));
         text.setFill(Color.DARKRED);
+        text.setMouseTransparent(true); 
+        
         graphPane.getChildren().add(0, line); 
         graphPane.getChildren().add(text);
         edges.put(edgeKey, new EdgeUI(line, text));
@@ -591,7 +608,7 @@ public class MatrixGraphUI {
 
     public void removeEdge(int from, int to) {
         graph.delEdge(from, to);
-        String key = from + "-" + to;
+        String key = Math.min(from, to) + "-" + Math.max(from, to); // 修复：统一 Key
         EdgeUI edgeUI = edges.remove(key);
         if (edgeUI != null) { graphPane.getChildren().removeAll(edgeUI.line, edgeUI.label); }
         updateMatrixDisplay();
@@ -647,6 +664,7 @@ public class MatrixGraphUI {
                     dslContent.append(line).append("\n");
                 }
             }
+            resetToDefault(); // 打开文件时重置
             renderFromDSL(dslContent.toString());
             System.out.println("DSL 加载成功");
         } catch (Exception ex) { 
