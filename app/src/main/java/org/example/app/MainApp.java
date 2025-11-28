@@ -148,14 +148,23 @@ public class MainApp extends Application {
             sendBtn.setDisable(true);
             responseArea.setText(""); 
 
-            llmService.generateDSL(input).thenAccept(response -> {
+            // === 修改点 1: 获取当前图的 DSL 状态 ===
+            String currentGraphDSL = "";
+            if (mode.equals("Adjacency List") && adjGraphUI != null) {
+                currentGraphDSL = adjGraphUI.getGraphDSL();
+            } else if (mode.equals("Adjacency Matrix") && matrixGraphUI != null) {
+                currentGraphDSL = matrixGraphUI.getGraphDSL();
+            }
+
+            // === 修改点 2: 将状态传给 LLM ===
+            llmService.generateDSL(input, currentGraphDSL).thenAccept(response -> {
                 Platform.runLater(() -> {
                     sendBtn.setDisable(false);
                     if (response.startsWith("[DSL]")) {
                         String dslContent = response.replace("[DSL]", "").trim();
-                        responseArea.setText("✅ 已识别为绘图指令，正在生成...\n\n" + dslContent);
+                        responseArea.setText("✅ 识别为绘图指令，正在执行...\n\n" + dslContent);
                         applyDSL(dslContent); 
-                        statusLabel.setText("✅ 图形已生成");
+                        statusLabel.setText("✅ 图形已更新");
                         statusLabel.setTextFill(Color.GREEN);
                     } else if (response.startsWith("[MSG]")) {
                         String msgContent = response.replace("[MSG]", "").trim();
@@ -170,6 +179,7 @@ public class MainApp extends Application {
                 });
             }).exceptionally(ex -> {
                 Platform.runLater(() -> {
+                    ex.printStackTrace();
                     statusLabel.setText("❌ 请求失败");
                     responseArea.setText("错误: " + ex.getMessage());
                     statusLabel.setTextFill(Color.RED);
@@ -187,11 +197,10 @@ public class MainApp extends Application {
         String type = typeSelector.getValue();
         System.out.println("AI Generated DSL:\n" + dsl);
 
+        // === 修改点 3: 移除 resetToDefault，由 renderFromDSL 中的 RESET 指令控制 ===
         if (type.equals("Adjacency List")) {
-            adjGraphUI.resetToDefault(); 
             adjGraphUI.renderFromDSL(dsl);
         } else if (type.equals("Adjacency Matrix")) {
-            matrixGraphUI.resetToDefault(); 
             matrixGraphUI.renderFromDSL(dsl);
         }
     }

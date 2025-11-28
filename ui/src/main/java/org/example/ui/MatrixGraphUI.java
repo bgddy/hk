@@ -109,7 +109,125 @@ public class MatrixGraphUI {
         updateMatrixDisplay();
         centerContent(); 
     }
-    
+
+    // === 新增：获取 DSL ===
+    public String getGraphDSL() {
+        StringBuilder sb = new StringBuilder();
+        for (Integer id : nodes.keySet()) {
+            sb.append("NODE ").append(id).append("\n"); 
+        }
+        int n = graph.verticesNumber();
+        for (int i = 0; i < n; i++) {
+            if (!graph.isVertexExists(i)) continue;
+            for (int j = 0; j < n; j++) {
+                if (!graph.isVertexExists(j)) continue;
+                int weight = graph.getEdge(i, j);
+                if (weight != 0) {
+                    sb.append(i).append(" -> ").append(j).append(" : ").append(weight).append("\n");
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    // === 修改：支持 RESET 和 DEL ===
+    public void renderFromDSL(String dslText) {
+        if (dslText == null || dslText.trim().isEmpty()) return;
+        
+        String[] lines = dslText.split("\n");
+        List<int[]> edgesToAdd = new ArrayList<>();
+        Map<Integer, double[]> loadedPositions = new HashMap<>();
+
+        for (String line : lines) {
+            line = line.trim();
+            if (line.isEmpty() || line.startsWith("#")) continue;
+            
+            // 1. 处理 RESET
+            if (line.equals("RESET")) {
+                clearInternalGraphState();
+                continue;
+            }
+
+            // 2. 删除点
+            if (line.startsWith("DEL NODE")) {
+                try {
+                    int id = Integer.parseInt(line.replace("DEL NODE", "").trim());
+                    removeVertex(id);
+                } catch (Exception e) {}
+                continue;
+            }
+
+            // 3. 删除边
+            if (line.startsWith("DEL") && line.contains("->")) {
+                try {
+                    String clean = line.replace("DEL", "").trim();
+                    String[] parts = clean.split("->");
+                    int u = Integer.parseInt(parts[0].trim());
+                    int v = Integer.parseInt(parts[1].trim());
+                    removeEdge(u, v);
+                } catch (Exception e) {}
+                continue;
+            }
+
+            // 4. POS
+            if (line.startsWith("POS")) {
+                try {
+                    String[] parts = line.split(" ");
+                    int id = Integer.parseInt(parts[1]);
+                    double x = Double.parseDouble(parts[2]);
+                    double y = Double.parseDouble(parts[3]);
+                    loadedPositions.put(id, new double[]{x, y});
+                } catch (Exception e) {}
+                continue;
+            }
+
+            // 5. 添加/更新边
+            if (line.contains("->") && !line.startsWith("DEL")) {
+                try {
+                    String[] parts = line.split("->");
+                    int u = Integer.parseInt(parts[0].trim());
+                    String rightPart = parts[1].trim();
+                    int v; int w = 1;
+                    if (rightPart.contains(":")) {
+                        String[] vw = rightPart.split(":");
+                        v = Integer.parseInt(vw[0].trim());
+                        w = Integer.parseInt(vw[1].trim());
+                    } else { v = Integer.parseInt(rightPart); }
+                    
+                    while (graph.verticesNumber() <= Math.max(u, v)) { graph.addVertex(); }
+                    addVertex(u, -1, -1); addVertex(v, -1, -1);
+                    
+                    int currentWeight = graph.getEdge(u, v);
+                    if (currentWeight != w) {
+                        edgesToAdd.add(new int[]{u, v, w});
+                    }
+                } catch (Exception e) { System.out.println("DSL 解析错误: " + line); }
+            }
+        }
+        
+        if (!loadedPositions.isEmpty()) {
+            for (Integer id : loadedPositions.keySet()) {
+                if (!nodes.containsKey(id)) addVertex(id, -1, -1);
+                Circle c = nodes.get(id);
+                double[] pos = loadedPositions.get(id);
+                c.setCenterX(pos[0]);
+                c.setCenterY(pos[1]);
+                Text t = nodeLabels.get(id);
+                if(t!=null) { t.setX(pos[0]-6); t.setY(pos[1]+6); }
+            }
+        } else {
+            // 如果执行了 RESET 且没有 POS，则重新布局
+            if (dslText.contains("RESET") && !dslText.contains("POS")) {
+                applyCircularLayout();
+            }
+        }
+
+        for (int[] edge : edgesToAdd) { addEdge(edge[0], edge[1], edge[2]); }
+        updateAllEdges();
+        updateMatrixDisplay();
+        matrixDisplay.setText(matrixDisplay.getText() + "\n\n[DSL 渲染完成]");
+    }
+
     public void centerContent() {
         Platform.runLater(() -> {
             graphScrollPane.setHvalue(0.5);
@@ -178,79 +296,6 @@ public class MatrixGraphUI {
         }
         updateMatrixDisplay();
         matrixDisplay.setText(matrixDisplay.getText() + "\n\n[随机图生成完毕]");
-    }
-
-    // === 增量更新 DSL ===
-    public void renderFromDSL(String dslText) {
-        if (dslText == null || dslText.trim().isEmpty()) return;
-        
-        // 注释掉清空逻辑以支持增量更新
-        // clearInternalGraphState();
-        
-        String[] lines = dslText.split("\n");
-        List<int[]> edgesToAdd = new ArrayList<>();
-        Map<Integer, double[]> loadedPositions = new HashMap<>();
-
-        for (String line : lines) {
-            line = line.trim();
-            if (line.isEmpty() || line.startsWith("#")) continue;
-            
-            if (line.startsWith("POS")) {
-                try {
-                    String[] parts = line.split(" ");
-                    int id = Integer.parseInt(parts[1]);
-                    double x = Double.parseDouble(parts[2]);
-                    double y = Double.parseDouble(parts[3]);
-                    loadedPositions.put(id, new double[]{x, y});
-                } catch (Exception e) {}
-                continue;
-            }
-
-            if (line.contains("->")) {
-                try {
-                    String[] parts = line.split("->");
-                    int u = Integer.parseInt(parts[0].trim());
-                    String rightPart = parts[1].trim();
-                    int v; int w = 1;
-                    if (rightPart.contains(":")) {
-                        String[] vw = rightPart.split(":");
-                        v = Integer.parseInt(vw[0].trim());
-                        w = Integer.parseInt(vw[1].trim());
-                    } else { v = Integer.parseInt(rightPart); }
-                    
-                    while (graph.verticesNumber() <= Math.max(u, v)) { graph.addVertex(); }
-                    addVertex(u, -1, -1); addVertex(v, -1, -1);
-                    
-                    // 检查是否需要更新（权重不同时才更新）
-                    int currentWeight = graph.getEdge(u, v);
-                    if (currentWeight != w) {
-                        edgesToAdd.add(new int[]{u, v, w});
-                    }
-                } catch (Exception e) { System.out.println("DSL 解析错误: " + line); }
-            }
-        }
-        
-        if (!loadedPositions.isEmpty()) {
-            for (Integer id : loadedPositions.keySet()) {
-                if (!nodes.containsKey(id)) addVertex(id, -1, -1);
-                Circle c = nodes.get(id);
-                double[] pos = loadedPositions.get(id);
-                c.setCenterX(pos[0]);
-                c.setCenterY(pos[1]);
-                Text t = nodeLabels.get(id);
-                if(t!=null) { t.setX(pos[0]-6); t.setY(pos[1]+6); }
-            }
-        } else {
-            // 只有当图是空的或者从零开始时才自动布局
-            if (edges.isEmpty() && loadedPositions.isEmpty()) {
-                applyCircularLayout();
-            }
-        }
-
-        for (int[] edge : edgesToAdd) { addEdge(edge[0], edge[1], edge[2]); }
-        updateAllEdges();
-        updateMatrixDisplay();
-        matrixDisplay.setText(matrixDisplay.getText() + "\n\n[DSL 渲染完成]");
     }
 
     public void resetToDefault() {
@@ -579,16 +624,15 @@ public class MatrixGraphUI {
         if (!nodes.containsKey(to)) addVertex(to);
         if (!nodes.containsKey(from) || !nodes.containsKey(to)) return;
         
-        // 关键修复：统一使用 min-max 作为 Key，避免重复添加视觉元素
+        // 统一 Key
         int min = Math.min(from, to);
         int max = Math.max(from, to);
         String edgeKey = min + "-" + max;
         
         if (edges.containsKey(edgeKey)) {
-            // 如果边已存在，直接更新权重文本
             EdgeUI edgeUI = edges.get(edgeKey);
             edgeUI.label.setText(String.valueOf(weight));
-            graph.setEdge(from, to, weight); // 确保后端数据也更新
+            graph.setEdge(from, to, weight); 
             return;
         }
         
@@ -608,7 +652,7 @@ public class MatrixGraphUI {
 
     public void removeEdge(int from, int to) {
         graph.delEdge(from, to);
-        String key = Math.min(from, to) + "-" + Math.max(from, to); // 修复：统一 Key
+        String key = Math.min(from, to) + "-" + Math.max(from, to); 
         EdgeUI edgeUI = edges.remove(key);
         if (edgeUI != null) { graphPane.getChildren().removeAll(edgeUI.line, edgeUI.label); }
         updateMatrixDisplay();
@@ -664,7 +708,7 @@ public class MatrixGraphUI {
                     dslContent.append(line).append("\n");
                 }
             }
-            resetToDefault(); // 打开文件时重置
+            resetToDefault(); 
             renderFromDSL(dslContent.toString());
             System.out.println("DSL 加载成功");
         } catch (Exception ex) { 

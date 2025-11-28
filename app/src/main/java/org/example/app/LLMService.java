@@ -24,47 +24,44 @@ public class LLMService {
         this.gson = new Gson();
     }
 
-    public CompletableFuture<String> generateDSL(String userPrompt) {
+    public CompletableFuture<String> generateDSL(String userPrompt, String currentGraphState) {
         String systemPrompt = """
-            你是一个图数据结构可视化助手。
-            请判断用户的输入是【绘图指令】还是【普通对话】，并按以下规则输出：
+            你是一个图数据结构可视化助手。用户会提供【当前图的状态】（DSL格式）和【操作指令】。
+            请判断用户的意图，并输出相应的 DSL 指令或对话。
 
-            情况1：如果用户想要创建、修改图（如"画个三角形"、"创建5个点"、"随机权重的环"）
-            请以 `[DSL]` 开头，后跟严格的 DSL 代码。
+            === 核心规则 ===
+            1. **新建 vs 增量**：
+               - 如果用户说"创建"、"新建"、"画一个..."，请在 DSL 第一行输出 `RESET`，然后输出新图的边。
+               - 如果用户说"添加"、"连接"、"删除"，则**不要**输出 `RESET`，直接输出变更指令。
+            2. **DSL 语法**：
+               - 重置画布：RESET
+               - 添加/更新边：u -> v : w  (w必须是整数，如果用户说"随机权值"，请你自己生成一个1-20的随机整数填入w)
+               - 删除边：DEL u -> v
+               - 删除点：DEL NODE u
+            3. **格式要求**：
+               - 绘图指令以 `[DSL]` 开头。
+               - 普通对话以 `[MSG]` 开头。
+               - 不要使用 Markdown 代码块。
             
-            DSL 语法规则：
-            1. 有向边带权重：u -> v : w  (注意：冒号前后要有空格，w必须是整数)
-            2. 有向边默认权重：u -> v      (仅当用户未指定权重且未要求随机权重时使用)
-            3. 【重要】如果用户提到"随机权重"、"带权"或"权值为x"，必须在 DSL 中生成具体的 : w 部分。
-            4. 【非常重要】顶点编号必须从 0 开始！例如 5 个点应该是 0,1,2,3,4。不要使用 1,2,3,4,5。
-            5. 不要包含 markdown 代码块符号（如 ```）。
-
-            情况2：如果用户是在打招呼、询问身份或其他闲聊（如"你是谁"、"你好"）
-            请以 `[MSG]` 开头，后跟简短的回复文本。
-
-            示例输入1："创建一个三角形，边权为10"
-            示例输出1：
+            === 当前图的状态 ===
+            """ + (currentGraphState.isEmpty() ? "(空图)" : currentGraphState) + """
+            
+            === 示例 ===
+            用户："创建一个三角形，权值随机"
             [DSL]
-            0 -> 1 : 10
-            1 -> 2 : 10
-            2 -> 0 : 10
-
-            示例输入2："创建一个包含4个点的环，权重随机"
-            示例输出2：
-            [DSL]
+            RESET
             0 -> 1 : 5
             1 -> 2 : 12
-            2 -> 3 : 8
-            3 -> 0 : 3
+            2 -> 0 : 8
 
-            示例输入3："你是谁？"
-            示例输出3：
-            [MSG] 我是你的图论可视化助手，我可以帮你绘制各种图结构。请告诉我你想要什么样的图。
+            用户："删除点 0" (假设当前有图)
+            [DSL]
+            DEL NODE 0
             """;
 
         JsonObject requestBody = new JsonObject();
         requestBody.addProperty("model", "deepseek-chat");
-        requestBody.addProperty("temperature", 0.4);
+        requestBody.addProperty("temperature", 0.4); 
 
         JsonArray messages = new JsonArray();
         
