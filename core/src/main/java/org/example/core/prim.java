@@ -18,22 +18,15 @@ public class prim {
 
         boolean[] visited = new boolean[n];
         int[] dist = new int[n];
-        int[] parent = new int[n]; // 记录父节点以便构建MST边
-        
+        int[] parent = new int[n]; 
         Arrays.fill(dist, Integer.MAX_VALUE);
         Arrays.fill(parent, -1);
-
-        // 默认从 0 号顶点开始
         int startNode = 0;
         dist[startNode] = 0;
-        
-        // 优先队列存储 [节点ID, 距离]
         PriorityQueue<int[]> pq = new PriorityQueue<>((a, b) -> Integer.compare(a[1], b[1]));
         pq.offer(new int[]{startNode, 0});
 
         List<Edge> mstEdges = new ArrayList<>();
-        
-        // 对应伪代码第0行: 初始化
         steps.add(new TraversalStep(TraversalStep.Type.VISIT, startNode, 0));
 
         while (!pq.isEmpty()) {

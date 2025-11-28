@@ -389,7 +389,7 @@ public class MainApp extends Application {
         TextField startT = new TextField(); startT.setPromptText("Start"); startT.setPrefWidth(50);
         TextField endT = new TextField(); endT.setPromptText("End"); endT.setPrefWidth(50);
         
-        Button bfsBtn = createStyledButton("BFS", "#4caf50");
+        Button bfsBtn = createStyledButton("BFS" , "#4caf50");
         Button dfsBtn = createStyledButton("DFS", "#2196f3");
         
         // === 修改: 添加 Kruskal 和 Prim 按钮 ===
