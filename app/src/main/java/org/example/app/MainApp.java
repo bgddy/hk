@@ -23,7 +23,7 @@ public class MainApp extends Application {
 
     private LLMService llmService = new LLMService();
     private ComboBox<String> typeSelector;
-
+   
     private AdjListGraph adjGraph;
     private AdjListGraphUI adjGraphUI;
     private MatrixGraph matrixGraph;

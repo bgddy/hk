@@ -4,92 +4,131 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class FastSort {
+    
+    private List<SortFrame> steps = new ArrayList<>();
+    private int[] arr;
 
-    private List<SortFrame> steps;
+    // 伪代码行号:
+    // 0: function partition(arr, low, high)
+    // 1:   pivot = arr[high]
+    // 2:   i = low - 1
+    // 3:   for j from low to high - 1
+    // 4:     if arr[j] <= pivot
+    // 5:       i = i + 1
+    // 6:       swap(arr[i], arr[j])
+    // 7:   swap(arr[i + 1], arr[high])
+    // 8:   return i + 1
+    // 9: 
+    // 10: function quick_sort(arr, low, high)
+    // 11:   if low < high
+    // 12:     pi = partition(arr, low, high)
+    // 13:     quick_sort(arr, low, pi - 1)
+    // 14:     quick_sort(arr, pi + 1, high)
 
-    // 伪代码映射:
-    // 0: quickSort(arr, low, high)
-    // 1:   if (low < high)
-    // 2:     pivot = arr[high]; i = low - 1
-    // 3:     for (j = low; j < high; j++)
-    // 4:       if (arr[j] < pivot)
-    // 5:         i++; swap(arr[i], arr[j])
-    // 6:     swap(arr[i + 1], arr[high])
-    // 7:     pi = i + 1
-    // 8:     quickSort(arr, low, pi - 1)
-    // 9:     quickSort(arr, pi + 1, high)
+    public List<SortFrame> sort(int[] array) {
+        this.arr = array.clone();
+        this.steps.clear();
 
-    public List<SortFrame> sort(int[] arr) {
-        steps = new ArrayList<>();
-        int n = arr.length;
-        int[] copy = arr.clone();
+        // 初始帧
+        steps.add(new SortFrame(arr, -1, -1, -1, -1, -1, -1, "快速排序开始。这是一个分治算法。"));
+
+        quickSort(0, arr.length - 1);
         
-        // 初始状态
-        addStep(copy, 0, -1, -1, -1, 0, n-1);
-        
-        quickSort(copy, 0, n - 1);
-        
-        // 结束状态
-        addStep(copy, 0, -1, -1, -1, -1, -1);
+        // 结束帧
+        steps.add(new SortFrame(arr, -1, -1, -1, -1, -1, -1, "排序完成！数组已完全有序。"));
         
         return steps;
     }
 
-    private void quickSort(int[] arr, int low, int high) {
-        addStep(arr, 0, -1, -1, -1, low, high); // 函数入口
-
-        addStep(arr, 1, -1, -1, -1, low, high); // 检查递归条件
+    private void quickSort(int low, int high) {
+        // quick_sort function (line 10)
+        steps.add(new SortFrame(arr, 10, -1, -1, -1, low, high, 
+            "进入快速排序函数，处理子数组 [" + low + ", " + high + "]。"));
+        
+        // if low < high (line 11)
         if (low < high) {
-            int pi = partition(arr, low, high);
-
-            // 递归左半部分
-            addStep(arr, 8, -1, -1, pi, low, high);
-            quickSort(arr, low, pi - 1);
-
-            // 递归右半部分
-            addStep(arr, 9, -1, -1, pi, low, high);
-            quickSort(arr, pi + 1, high);
+            steps.add(new SortFrame(arr, 11, -1, -1, -1, low, high, 
+                "子数组长度大于 1 (" + low + " < " + high + ")，需要分区。"));
+            
+            // pi = partition(...) (line 12)
+            int pi = partition(low, high);
+            steps.add(new SortFrame(arr, 12, pi, -1, arr[pi], low, high, 
+                "分区完成。基准值 (" + arr[pi] + ") 已归位到索引 " + pi + "。"));
+            
+            // quick_sort(low, pi - 1) (line 13)
+            quickSort(low, pi - 1);
+            
+            // quick_sort(pi + 1, high) (line 14)
+            quickSort(pi + 1, high);
+        } else {
+            // if low < high (line 11 - 失败)
+            steps.add(new SortFrame(arr, 11, -1, -1, -1, low, high, 
+                "子数组长度小于等于 1 (" + low + " >= " + high + ")，无需分区，递归返回。"));
         }
     }
 
-    private int partition(int[] arr, int low, int high) {
-        int pivot = arr[high];
-        int i = (low - 1);
+    private int partition(int low, int high) {
+        // partition function (line 0)
+        steps.add(new SortFrame(arr, 0, -1, high, -1, low, high, 
+            "进入分区函数 (Partition)。子数组范围 [" + low + ", " + high + "]。"));
         
-        // 初始化 pivot 和 i
-        addStep(arr, 2, i, -1, high, low, high); // extra=high (pivot位置)
+        int pivot = arr[high];
+        // pivot = arr[high] (line 1)
+        steps.add(new SortFrame(arr, 1, -1, high, pivot, low, high, 
+            "选择最右侧元素 (" + pivot + ") 作为基准值 (Pivot)。"));
+        
+        int i = low - 1;
+        // i = low - 1 (line 2)
+        steps.add(new SortFrame(arr, 2, i, high, pivot, low, high, 
+            "初始化指针 i = " + i + "，i 指向小于 Pivot 区域的边界。"));
 
         for (int j = low; j < high; j++) {
-            // 循环开始
-            addStep(arr, 3, i, j, high, low, high);
-
-            // 比较
-            addStep(arr, 4, i, j, high, low, high);
-            if (arr[j] < pivot) {
+            // for j from low to high - 1 (line 3)
+            steps.add(new SortFrame(arr, 3, i, j, pivot, low, high, 
+                "检查元素 arr[" + j + "] = " + arr[j] + "。"));
+            
+            // if arr[j] <= pivot (line 4)
+            if (arr[j] <= pivot) {
+                steps.add(new SortFrame(arr, 4, i, j, pivot, low, high, 
+                    "arr[" + j + "] (" + arr[j] + ") <= Pivot (" + pivot + ")。条件满足。"));
+                
                 i++;
-                // 交换 arr[i] 和 arr[j]
-                swap(arr, i, j);
-                addStep(arr, 5, i, j, high, low, high);
+                // i = i + 1 (line 5)
+                steps.add(new SortFrame(arr, 5, i, j, pivot, low, high, 
+                    "i 递增到 " + i + "，扩展小于 Pivot 的区域。"));
+                
+                // swap(arr[i], arr[j]) (line 6)
+                // 仅当 i 和 j 不同时才需要交换
+                if (i != j) {
+                    steps.add(new SortFrame(arr, 6, i, j, pivot, low, high, 
+                        "交换 arr[" + i + "] (" + arr[i] + ") 和 arr[" + j + "] (" + arr[j] + ")。将较小元素移到左侧。"));
+                    int temp = arr[i];
+                    arr[i] = arr[j];
+                    arr[j] = temp;
+                } else {
+                    steps.add(new SortFrame(arr, 6, i, j, pivot, low, high, 
+                        "i 和 j 相同，无需交换。"));
+                }
+            } else {
+                // if arr[j] <= pivot (line 4 - 失败)
+                steps.add(new SortFrame(arr, 4, i, j, pivot, low, high, 
+                    "arr[" + j + "] (" + arr[j] + ") > Pivot (" + pivot + ")。保留在右侧（大于 Pivot 区域）。"));
             }
         }
-
-        // 把 pivot 放到正确的位置
-        swap(arr, i + 1, high);
-        addStep(arr, 6, i + 1, high, high, low, high);
         
-        int pi = i + 1;
-        addStep(arr, 7, -1, -1, pi, low, high); // 分区完成，pi 确定
+        // swap(arr[i + 1], arr[high]) (line 7)
+        int finalPos = i + 1;
+        steps.add(new SortFrame(arr, 7, finalPos, high, pivot, low, high, 
+            "最后一步：将 Pivot (" + pivot + ") 插入到位置 i+1 (" + finalPos + ")。"));
         
-        return pi;
-    }
-
-    private void swap(int[] arr, int i, int j) {
-        int temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
-    }
-    
-    private void addStep(int[] arr, int line, int i, int j, int extra, int l, int r) {
-        steps.add(new SortFrame(arr, line, i, j, extra, l, r));
+        int temp = arr[finalPos];
+        arr[finalPos] = arr[high];
+        arr[high] = temp;
+        
+        // return i + 1 (line 8)
+        steps.add(new SortFrame(arr, 8, finalPos, high, pivot, low, high, 
+            "Pivot 已归位。返回 Pivot 的最终索引 " + finalPos + "。"));
+        
+        return finalPos;
     }
 }

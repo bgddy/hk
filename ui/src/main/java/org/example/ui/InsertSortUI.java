@@ -1,180 +1,142 @@
 package org.example.ui;
 
-import javafx.animation.*;
-import javafx.scene.layout.HBox;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Text;
 import javafx.util.Duration;
 import org.example.core.InsertSort;
 import org.example.core.SortFrame;
 import java.util.List;
 
 public class InsertSortUI extends ControllableSortUI {
-
-    private int[] originalData;
     private List<SortFrame> steps;
-    
-    
-    private int tempKeyPermIndex = -1;
-    
-    private static final String[] PSEUDO_CODE = {
-        "for i from 1 to n-1",           // 0
-        "  key = arr[i]; j = i - 1",     // 1
-        "  while j >= 0 && arr[j] > key",// 2
-        "    arr[j + 1] = arr[j]",       // 3
-        "    j = j - 1",                 // 4
-        "  arr[j + 1] = key"             // 5
+    private final String[] pseudocode = {
+        "for i from 1 to n-1",
+        "  key = arr[i]",
+        "  j = i - 1",
+        "  while j >= 0 and arr[j] > key",
+        "    arr[j + 1] = arr[j]",
+        "    j = j - 1",
+        "  arr[j + 1] = key"
     };
 
-    public InsertSortUI(int[] data) {
-        super(); 
-        this.originalData = data.clone();
-        
-        initBars(data);
-        initCodeView(PSEUDO_CODE);
-        
+    public InsertSortUI(int[] array) {
         InsertSort sorter = new InsertSort();
-        this.steps = sorter.sort(data);
+        this.steps = sorter.sort(array);
+        
+        initBars(array);
+        initCodeView(pseudocode);
     }
 
-    private void initBars(int[] data) {
+    private void initBars(int[] array) {
         barsContainer.getChildren().clear();
-        bars = new Rectangle[data.length];
-        for (int i = 0; i < data.length; i++) {
-            double height = data[i] * SCALE;
-            Rectangle rect = new Rectangle(BAR_WIDTH, height, Color.LIGHTGREEN);
-            rect.setTranslateX(i * (BAR_WIDTH + SPACING));
-            rect.setTranslateY(BASELINE - height);
-            bars[i] = rect;
-            barsContainer.getChildren().add(rect);
+        bars = new Rectangle[array.length];
+        
+        for (int i = 0; i < array.length; i++) {
+            double height = array[i] * SCALE;
+            Rectangle bar = new Rectangle(BAR_WIDTH, height);
+            bar.setFill(Color.LIGHTGREEN);
+            bar.setX(i * (BAR_WIDTH + SPACING));
+            bar.setY(BASELINE - height);
+            bars[i] = bar;
+
+            Text text = new Text(String.valueOf(array[i]));
+            text.setX(i * (BAR_WIDTH + SPACING) + BAR_WIDTH / 2 - text.getLayoutBounds().getWidth() / 2);
+            text.setY(BASELINE + 15);
+
+            barsContainer.getChildren().addAll(bar, text);
         }
     }
 
     @Override
-    public void visualizeSteps(long stepDelay) {
-        if (animation != null) animation.stop();
-        this.isPlaying = true;
-        if (currentStep >= steps.size()) currentStep = 0;
-        
-       
-        if (stabilityMode) {
-            setStabilityMode(true, originalData);
-            tempKeyPermIndex = -1;
-        }
-
-        int stepsPerFrame = isRaceMode ? 50 : 1;
-
-        Timeline timeline = new Timeline();
-        timeline.setCycleCount(Animation.INDEFINITE);
-        
-        KeyFrame kf = new KeyFrame(Duration.millis(stepDelay), e -> {
-            for (int k = 0; k < stepsPerFrame && currentStep < steps.size(); k++) {
-                SortFrame frame = steps.get(currentStep);
-                int[] currentArray = frame.getArrayState();
-                
-                
-                if (stabilityMode && permutation != null) {
-                    int line = frame.getLineIndex();
-                    
-                    
-                    if (line == 1) {
-                        if (frame.i >= 0 && frame.i < permutation.length) {
-                            tempKeyPermIndex = permutation[frame.i];
-                        }
-                    }
-                   
-                    else if (line == 3) {
-                        
-                        if (frame.j >= 0 && frame.extra >= 0 && frame.extra < permutation.length) {
-                            permutation[frame.extra] = permutation[frame.j];
-                        }
-                    }
-                    
-                    else if (line == 5) {
-                        if (frame.extra >= 0 && frame.extra < permutation.length && tempKeyPermIndex != -1) {
-                            permutation[frame.extra] = tempKeyPermIndex;
-                        }
-                    }
-                }
-                
-                // UI 更新
-                if (k == stepsPerFrame - 1 || currentStep == steps.size() - 1) {
-                    updateBarsWithHighlights(currentArray, frame);
-                    
-                    if (stabilityMode) refreshColors();
-                    
-                    if (!isRaceMode) highlightLine(frame.getLineIndex());
-                    else highlightLine(-1);
-                }
-                currentStep++;
-            }
-
-            if (currentStep >= steps.size()) {
-                timeline.stop();
-                isPlaying = false;
-                highlightLine(-1);
-                resetBarColors();
-            }
-        });
-        
-        timeline.getKeyFrames().add(kf);
-        this.animation = timeline;
-        timeline.play();
-    }
-
-    private void updateBarsWithHighlights(int[] arr, SortFrame frame) {
-        int idxI = frame.i;
-        int idxJ = frame.j;
-        int idxExtra = frame.extra; // 用于标记 key 或 移动目标
-
-        for (int k = 0; k < bars.length; k++) {
-            double height = arr[k] * SCALE;
-            bars[k].setHeight(height);
-            bars[k].setTranslateY(BASELINE - height);
+    public void nextStep() {
+        if (currentStep < steps.size()) {
+            SortFrame frame = steps.get(currentStep);
             
-            if (!stabilityMode) {
-                Color color = Color.LIGHTGREEN; // 默认颜色
-                
-                // 颜色优先级逻辑：
-                if (k == idxExtra && idxExtra != -1) {
-                    color = Color.ORANGE; // 移动目标
-                } else if (k == idxJ && idxJ != -1) {
-                    color = Color.RED;    // 比较对象
-                } else if (k == idxI && idxI != -1) {
-                    color = Color.ROYALBLUE; // 待插入元素初始位置
+            // [新增] 更新算法解释文本
+            updateExplanation(frame.getDescription()); 
+
+            int[] state = frame.getArrayState();
+            int lineIndex = frame.getLineIndex();
+            int i = frame.getI(); // 当前元素/已排序边界
+            int j = frame.getJ(); // 扫描指针
+            int key = frame.getExtra(); // key值（在数组中是虚拟的）
+
+            // 1. 更新柱状图高度和位置
+            for (int k = 0; k < state.length; k++) {
+                double height = state[k] * SCALE;
+                bars[k].setHeight(height);
+                bars[k].setY(BASELINE - height);
+            }
+            
+            // 2. 更新颜色
+            refreshColors();
+            for (int k = 0; k < state.length; k++) {
+                if (k < i) { // 已排序部分
+                    bars[k].setFill(Color.GRAY);
                 } 
-                
-                bars[k].setFill(color);
+                if (k == i) { // 边界 (i)
+                    bars[k].setFill(Color.YELLOW);
+                } 
+                if (k == j) { // 当前被比较元素 (j)
+                    bars[k].setFill(Color.ORANGE);
+                }
+                if (k == j + 1 && lineIndex == 6) { // 插入 Key 的位置
+                     bars[k].setFill(Color.RED);
+                }
+            }
+            
+            // 3. 高亮代码
+            highlightLine(lineIndex);
+
+            currentStep++;
+        } else {
+            if (currentStep == steps.size()) {
+                for (Rectangle bar : bars) {
+                    bar.setFill(Color.GREEN);
+                }
+                highlightLine(-1);
+                currentStep++;
             }
         }
     }
     
-    private void resetBarColors() {
-        if(!stabilityMode) {
-            for(Rectangle r : bars) r.setFill(Color.LIGHTGREEN);
+    @Override
+    public void visualizeSteps(long stepDelay) {
+        if (animation != null) {
+            animation.stop();
         }
+
+        animation = new Timeline(new KeyFrame(Duration.millis(stepDelay), e -> nextStep()));
+        animation.setCycleCount(steps.size() - currentStep + 1);
+        animation.play();
+        isPlaying = true;
     }
 
     @Override
     public void reset() {
-        if (animation != null) animation.stop();
-        isPlaying = false;
-        currentStep = 0;
-        highlightLine(-1);
-        initBars(originalData);
-        if (stabilityMode) setStabilityMode(true, originalData);
-    }
-    
-    @Override 
-    public void nextStep() { 
-        if (currentStep < steps.size()) {
-            
-            SortFrame frame = steps.get(currentStep);
-            updateBarsWithHighlights(frame.getArrayState(), frame);
-            highlightLine(frame.getLineIndex());
-            currentStep++;
+        if (animation != null) {
+            animation.stop();
         }
+        currentStep = 0;
+        isPlaying = false;
+        
+        int[] initialArray = new int[0];
+        if (steps != null && !steps.isEmpty()) {
+            initialArray = steps.get(0).getArrayState();
+        }
+        initBars(initialArray);
+        initCodeView(pseudocode);
+        
+        // [新增] 重置解释文本
+        updateExplanation("算法已重置。请点击'下一步'或'播放'开始演示。");
     }
-    
-    @Override public int getTotalSteps() { return steps.size(); }
+
+    @Override
+    public int getTotalSteps() {
+        return steps.size();
+    }
 }
