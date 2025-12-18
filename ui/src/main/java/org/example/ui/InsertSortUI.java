@@ -112,6 +112,7 @@ public class InsertSortUI extends ControllableSortUI {
 
         animation = new Timeline(new KeyFrame(Duration.millis(stepDelay), e -> nextStep()));
         animation.setCycleCount(steps.size() - currentStep + 1);
+        animation.setOnFinished(e -> isPlaying = false);
         animation.play();
         isPlaying = true;
     }

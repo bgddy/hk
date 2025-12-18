@@ -103,101 +103,131 @@ public class MainApp extends Application {
         primaryStage.show();
     }
 
+    // === [关键修改] 全新的 AI 面板初始化方法 ===
     private VBox initAIPanel() {
         VBox box = new VBox(10);
         box.setPadding(new Insets(15));
         box.setStyle("-fx-background-color: #f0f8ff; -fx-border-color: #90caf9; -fx-border-radius: 8; -fx-background-radius: 8; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 5, 0, 0, 2);");
 
-        Label title = new Label("🤖 AI 智能绘图助手 (DeepSeek)");
+        Label title = new Label("🤖 AI 智能助手 (DeepSeek)");
         title.setStyle("-fx-font-weight: bold; -fx-font-size: 14px; -fx-text-fill: #1565c0;");
 
         TextArea promptInput = new TextArea();
-        promptInput.setPromptText("在此输入自然语言，例如：\n- 创建一个5个点的环\n- 你是谁？");
+        promptInput.setPromptText("在此输入：\n1. 绘图指令 (如: '画个五角星')\n2. 提问 (如: '这个图有环吗？')");
         promptInput.setWrapText(true);
         promptInput.setPrefHeight(60);
 
-        Button sendBtn = createStyledButton("发送指令", "#2196f3");
-        sendBtn.setMaxWidth(Double.MAX_VALUE);
+        // === 按钮区域 ===
+        HBox buttonBox = new HBox(8);
+        buttonBox.setAlignment(Pos.CENTER_LEFT);
+
+        Button drawBtn = createStyledButton("🎨 执行绘图", "#4caf50"); // 绿色
+        Button askBtn = createStyledButton("💬 咨询教授", "#2196f3");  // 蓝色
+        Button analyzeBtn = createStyledButton("🧠 一键分析", "#9c27b0"); // 紫色
+
+        drawBtn.setMaxWidth(Double.MAX_VALUE);
+        askBtn.setMaxWidth(Double.MAX_VALUE);
+        analyzeBtn.setMaxWidth(Double.MAX_VALUE);
+        
+        buttonBox.getChildren().addAll(drawBtn, askBtn, analyzeBtn);
+        HBox.setHgrow(drawBtn, Priority.ALWAYS);
+        HBox.setHgrow(askBtn, Priority.ALWAYS);
+        HBox.setHgrow(analyzeBtn, Priority.ALWAYS);
 
         Label responseLabel = new Label("AI 回复:");
         responseLabel.setStyle("-fx-font-size: 10px; -fx-text-fill: #555;");
         
         TextArea responseArea = new TextArea();
-        responseArea.setPromptText("AI 的回复将显示在这里...");
+        responseArea.setPromptText("AI 的分析结果将显示在这里...");
         responseArea.setEditable(false);
         responseArea.setWrapText(true);
-        responseArea.setPrefHeight(100);
-        responseArea.setStyle("-fx-control-inner-background: #eef; -fx-font-family: monospace; -fx-font-size: 11px;");
+        responseArea.setPrefHeight(120); 
+        responseArea.setStyle("-fx-control-inner-background: #eef; -fx-font-family: 'Microsoft YaHei', monospace; -fx-font-size: 12px;");
 
         Label statusLabel = new Label("准备就绪");
         statusLabel.setStyle("-fx-text-fill: #757575; -fx-font-size: 11px;");
 
-        sendBtn.setOnAction(e -> {
+        // === 1. 绘图按钮逻辑 ===
+        drawBtn.setOnAction(e -> {
             String input = promptInput.getText();
             if (input.isEmpty()) return;
-
-            String mode = typeSelector.getValue();
-            if (mode == null || (!mode.contains("Adjacency") && !mode.contains("Matrix"))) {
-                statusLabel.setText("⚠️ 请先选择一种图论算法模式");
-                statusLabel.setTextFill(Color.RED);
-                return;
-            }
-
-            statusLabel.setText("Thinking... (DeepSeek)");
-            statusLabel.setTextFill(Color.BLUE);
-            sendBtn.setDisable(true);
-            responseArea.setText(""); 
-
-            // === 修改点 1: 获取当前图的 DSL 状态 ===
-            String currentGraphDSL = "";
-            if (mode.equals("Adjacency List") && adjGraphUI != null) {
-                currentGraphDSL = adjGraphUI.getGraphDSL();
-            } else if (mode.equals("Adjacency Matrix") && matrixGraphUI != null) {
-                currentGraphDSL = matrixGraphUI.getGraphDSL();
-            }
-
-            // === 修改点 2: 将状态传给 LLM ===
-            llmService.generateDSL(input, currentGraphDSL).thenAccept(response -> {
-                Platform.runLater(() -> {
-                    sendBtn.setDisable(false);
-                    if (response.startsWith("[DSL]")) {
-                        String dslContent = response.replace("[DSL]", "").trim();
-                        responseArea.setText("✅ 识别为绘图指令，正在执行...\n\n" + dslContent);
-                        applyDSL(dslContent); 
-                        statusLabel.setText("✅ 图形已更新");
-                        statusLabel.setTextFill(Color.GREEN);
-                    } else if (response.startsWith("[MSG]")) {
-                        String msgContent = response.replace("[MSG]", "").trim();
-                        responseArea.setText(msgContent);
-                        statusLabel.setText("💬 AI 回复完毕");
-                        statusLabel.setTextFill(Color.GRAY);
-                    } else {
-                        responseArea.setText(response);
-                        statusLabel.setText("❓ 未知格式");
-                        statusLabel.setTextFill(Color.ORANGE);
-                    }
-                });
-            }).exceptionally(ex -> {
-                Platform.runLater(() -> {
-                    ex.printStackTrace();
-                    statusLabel.setText("❌ 请求失败");
-                    responseArea.setText("错误: " + ex.getMessage());
-                    statusLabel.setTextFill(Color.RED);
-                    sendBtn.setDisable(false);
-                });
-                return null;
-            });
+            handleAIRequest(input, true, statusLabel, responseArea);
         });
 
-        box.getChildren().addAll(title, promptInput, sendBtn, statusLabel, responseLabel, responseArea);
+        // === 2. 咨询按钮逻辑 (新功能: 自由提问) ===
+        askBtn.setOnAction(e -> {
+            String input = promptInput.getText();
+            if (input.isEmpty()) {
+                statusLabel.setText("⚠️ 请先输入问题"); 
+                return;
+            }
+            handleAIRequest(input, false, statusLabel, responseArea);
+        });
+
+        // === 3. 一键分析按钮逻辑 (新功能: 自动Prompt) ===
+        analyzeBtn.setOnAction(e -> {
+            promptInput.setText("请详细分析当前图的结构特点、连通性以及适合的算法。");
+            handleAIRequest("请详细分析当前图的结构特点、连通性以及适合的算法。", false, statusLabel, responseArea);
+        });
+
+        box.getChildren().addAll(title, promptInput, buttonBox, statusLabel, responseLabel, responseArea);
         return box;
+    }
+
+    // === [新增] 辅助方法：统一处理 AI 请求 ===
+    private void handleAIRequest(String input, boolean isDrawing, Label statusLabel, TextArea responseArea) {
+        String mode = typeSelector.getValue();
+        if (mode == null || (!mode.contains("Adjacency") && !mode.contains("Matrix"))) {
+            statusLabel.setText("⚠️ 请先选择图论模式");
+            statusLabel.setTextFill(Color.RED);
+            return;
+        }
+
+        statusLabel.setText(isDrawing ? "🎨 AI 正在绘图..." : "🧠 AI 教授正在思考...");
+        statusLabel.setTextFill(Color.BLUE);
+        responseArea.setText("");
+
+        // 获取当前 DSL (程序自动读取，不需要手动输入)
+        String currentGraphDSL = "";
+        if (mode.equals("Adjacency List") && adjGraphUI != null) {
+            currentGraphDSL = adjGraphUI.getGraphDSL();
+        } else if (mode.equals("Adjacency Matrix") && matrixGraphUI != null) {
+            currentGraphDSL = matrixGraphUI.getGraphDSL();
+        }
+
+        // 根据按钮不同，调用不同的 LLMService 方法
+        if (isDrawing) {
+            llmService.generateDSL(input, currentGraphDSL).thenAccept(response -> 
+                Platform.runLater(() -> processAIResponse(response, statusLabel, responseArea, true))
+            );
+        } else {
+            llmService.chatWithGraph(input, currentGraphDSL).thenAccept(response -> 
+                Platform.runLater(() -> processAIResponse(response, statusLabel, responseArea, false))
+            );
+        }
+    }
+
+    // === [新增] 辅助方法：处理 AI 返回结果 ===
+    private void processAIResponse(String response, Label statusLabel, TextArea responseArea, boolean isDrawingMode) {
+        if (isDrawingMode && response.startsWith("[DSL]")) {
+            String dslContent = response.replace("[DSL]", "").trim();
+            responseArea.setText("✅ 执行绘图指令:\n" + dslContent);
+            applyDSL(dslContent);
+            statusLabel.setText("✅ 图形已更新");
+            statusLabel.setTextFill(Color.GREEN);
+        } else {
+            // 聊天/分析模式，或者绘图失败转为对话
+            String msgContent = response.replace("[MSG]", "").trim();
+            responseArea.setText(msgContent);
+            statusLabel.setText("💬 回复完毕");
+            statusLabel.setTextFill(Color.GRAY);
+        }
     }
 
     private void applyDSL(String dsl) {
         String type = typeSelector.getValue();
         System.out.println("AI Generated DSL:\n" + dsl);
 
-        // === 修改点 3: 移除 resetToDefault，由 renderFromDSL 中的 RESET 指令控制 ===
         if (type.equals("Adjacency List")) {
             adjGraphUI.renderFromDSL(dsl);
         } else if (type.equals("Adjacency Matrix")) {
@@ -310,21 +340,18 @@ public class MainApp extends Application {
                         if (type.equals("Selection Sort")) {
                             selectionSortUI = new SelectionSortUI(arr);
                             if(isStabilityTest) selectionSortUI.setStabilityMode(true, arr);
-                            // 绑定尺寸
                             selectionSortUI.getRoot().prefWidthProperty().bind(bottomPane.widthProperty());
                             selectionSortUI.getRoot().prefHeightProperty().bind(bottomPane.heightProperty());
                             bottomPane.getChildren().add(selectionSortUI.getRoot());
                         } else if (type.equals("Insertion Sort")) {
                             insertSortUI = new InsertSortUI(arr);
                             if(isStabilityTest) insertSortUI.setStabilityMode(true, arr);
-                            // 绑定尺寸
                             insertSortUI.getRoot().prefWidthProperty().bind(bottomPane.widthProperty());
                             insertSortUI.getRoot().prefHeightProperty().bind(bottomPane.heightProperty());
                             bottomPane.getChildren().add(insertSortUI.getRoot());
                         } else {
                             fastSortUI = new FastSortUI(arr);
                             if(isStabilityTest) fastSortUI.setStabilityMode(true, arr);
-                            // 绑定尺寸
                             fastSortUI.getRoot().prefWidthProperty().bind(bottomPane.widthProperty());
                             fastSortUI.getRoot().prefHeightProperty().bind(bottomPane.heightProperty());
                             bottomPane.getChildren().add(fastSortUI.getRoot());
@@ -343,7 +370,6 @@ public class MainApp extends Application {
                 if (sortingRaceUI == null) sortingRaceUI = new SortingRaceUI();
                 bottomPane.getChildren().clear();
                 HBox raceRoot = sortingRaceUI.getRoot(); 
-                // 绑定尺寸
                 raceRoot.prefWidthProperty().bind(bottomPane.widthProperty());
                 raceRoot.prefHeightProperty().bind(bottomPane.heightProperty());
                 bottomPane.getChildren().add(raceRoot);
@@ -356,7 +382,6 @@ public class MainApp extends Application {
                 
             case "Adjacency List":
                 buildGraphControlPanel("邻接表", adjGraphUI, rightTopPane);
-                // 【关键修复】绑定尺寸，防止消失
                 adjGraphUI.getPane().prefWidthProperty().bind(bottomPane.widthProperty());
                 adjGraphUI.getPane().prefHeightProperty().bind(bottomPane.heightProperty());
                 bottomPane.getChildren().add(adjGraphUI.getPane());
@@ -364,7 +389,6 @@ public class MainApp extends Application {
                 
             case "Adjacency Matrix":
                 buildMatrixControlPanel("邻接矩阵", matrixGraphUI, rightTopPane);
-                // 【关键修复】绑定尺寸
                 matrixGraphUI.getPane().prefWidthProperty().bind(bottomPane.widthProperty());
                 matrixGraphUI.getPane().prefHeightProperty().bind(bottomPane.heightProperty());
                 bottomPane.getChildren().add(matrixGraphUI.getPane());
@@ -401,7 +425,7 @@ public class MainApp extends Application {
         Button bfsBtn = createStyledButton("BFS" , "#4caf50");
         Button dfsBtn = createStyledButton("DFS", "#2196f3");
         
-        // === 修改: 添加 Kruskal 和 Prim 按钮 ===
+        // === 现有的 Kruskal 和 Prim 按钮 ===
         Button kruskalBtn = createStyledButton("Kruskal", "#ff9800");
         Button primBtn = createStyledButton("Prim", "#ff5722");
         
@@ -411,8 +435,15 @@ public class MainApp extends Application {
         Button dijBtn = createStyledButton("Dijkstra(单)", "#e91e63");
         Button dijAllBtn = createStyledButton("Dijkstra(全)", "#c2185b");
         
-        // 将 Kruskal 和 Prim 加入布局
-        algoBox2.getChildren().addAll(kruskalBtn, primBtn, dijBtn, dijAllBtn);
+        // [新增] A* 按钮
+        Button aStarBtn = createStyledButton("A* Search", "#9c27b0"); // 使用紫色以示区分
+        
+        // 将 A* 加入布局 (建议放在 Dijkstra 旁边)
+        algoBox2.getChildren().addAll(kruskalBtn, primBtn, dijBtn, aStarBtn); 
+        
+        // 如果想更整齐，也可以另起一行，或者把 dijAllBtn 移走，看你布局喜好
+        HBox algoBox3 = new HBox(5);
+        algoBox3.getChildren().add(dijAllBtn);
 
         // === 新增：动画控制按钮 ===
         Label controlLabel = new Label("动画控制:");
@@ -456,6 +487,9 @@ public class MainApp extends Application {
         dijBtn.setOnAction(e -> ui.performDijkstra(startT.getText(), endT.getText()));
         dijAllBtn.setOnAction(e -> ui.performDijkstraAll(startT.getText()));
 
+        // [新增] 绑定 A* 按钮事件
+        aStarBtn.setOnAction(e -> ui.performAStar(startT.getText(), endT.getText()));
+
         // === 绑定控制按钮 ===
         playBtn.setOnAction(e -> ui.play());
         pauseBtn.setOnAction(e -> ui.pause());
@@ -466,8 +500,8 @@ public class MainApp extends Application {
             new Label("边管理:"), edgeInputs, 
             new Separator(), graphManageLabel, graphManagementButtons,
             new Separator(), dslLabel, dslArea, renderDslBtn,
-            new Separator(), algoLabel, algoBox, algoBox2,
-            new Separator(), controlLabel, controlBox // 添加控制面板
+            new Separator(), algoLabel, algoBox, algoBox2, algoBox3, // 别忘了把 algoBox3 加进去
+            new Separator(), controlLabel, controlBox 
         );
     }
 

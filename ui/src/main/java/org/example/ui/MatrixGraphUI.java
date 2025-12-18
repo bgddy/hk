@@ -37,6 +37,9 @@ public class MatrixGraphUI {
     private Map<Integer, Circle> nodes = new HashMap<>();
     private Map<Integer, Text> nodeLabels = new HashMap<>();
 
+    // [新增] 用于记录当前选中的节点ID (用于连线)
+    private Integer selectedNodeId = null;
+
     private static class EdgeUI {
         Line line;
         Text label;
@@ -54,6 +57,17 @@ public class MatrixGraphUI {
         graphPane = new Pane();
         graphPane.setPrefSize(2000, 2000); 
         graphPane.setStyle("-fx-background-color: #f8f9fa;");
+
+        // [新增] 点击空白处取消选中
+        graphPane.setOnMouseClicked(e -> {
+            if (e.getTarget() == graphPane) {
+                if (selectedNodeId != null) {
+                    resetStyles();
+                    selectedNodeId = null;
+                    updateLog("已取消选中");
+                }
+            }
+        });
         
         Group scrollContent = new Group(graphPane);
         
@@ -110,7 +124,56 @@ public class MatrixGraphUI {
         centerContent(); 
     }
 
-    // === 新增：获取 DSL ===
+    // [新增] 处理节点点击事件 (选中/连线)
+    private void handleNodeClick(int clickedId) {
+        if (selectedNodeId == null) {
+            // 1. 还没有选中起点，当前点击作为起点
+            selectedNodeId = clickedId;
+            Circle c = nodes.get(clickedId);
+            if (c != null) c.setFill(Color.CYAN); // 变色提示
+            updateLog("已选中起点: " + clickedId + "，请点击另一个节点进行连线...");
+        } else {
+            // 2. 已经有起点，当前点击作为终点
+            if (selectedNodeId == clickedId) {
+                // 如果点了自己，取消选中
+                resetStyles();
+                selectedNodeId = null;
+                updateLog("取消选中");
+            } else {
+                // 弹出对话框输入权重
+                TextInputDialog dialog = new TextInputDialog("1");
+                dialog.setTitle("添加边");
+                dialog.setHeaderText("创建边: " + selectedNodeId + " -> " + clickedId);
+                dialog.setContentText("请输入权重:");
+
+                Optional<String> result = dialog.showAndWait();
+                result.ifPresent(wStr -> {
+                    try {
+                        int w = Integer.parseInt(wStr);
+                        addEdge(selectedNodeId, clickedId, w);
+                        updateLog("成功添加边: " + selectedNodeId + " -> " + clickedId + " (权重: " + w + ")");
+                    } catch (NumberFormatException ex) {
+                        updateLog("无效权重，操作取消");
+                    }
+                });
+                
+                // 连线完成后重置状态
+                resetStyles();
+                selectedNodeId = null;
+            }
+        }
+    }
+
+    // [新增] 更新日志显示
+    private void updateLog(String msg) {
+        if (msg == null || msg.isEmpty()) return;
+        String currentText = matrixDisplay.getText();
+        // 简单地追加在最前面，或者保留矩阵信息
+        // 为了不破坏矩阵显示，我们将日志追加在矩阵下方
+        // 由于 updateMatrixDisplay 会重置文本，这里我们暂时追加
+        matrixDisplay.setText(graph.getMatrixString() + "\n\n[Log] " + msg);
+    }
+
     public String getGraphDSL() {
         StringBuilder sb = new StringBuilder();
         for (Integer id : nodes.keySet()) {
@@ -130,7 +193,6 @@ public class MatrixGraphUI {
         return sb.toString();
     }
 
-    // === 修改：支持 RESET 和 DEL ===
     public void renderFromDSL(String dslText) {
         if (dslText == null || dslText.trim().isEmpty()) return;
         
@@ -142,13 +204,11 @@ public class MatrixGraphUI {
             line = line.trim();
             if (line.isEmpty() || line.startsWith("#")) continue;
             
-            // 1. 处理 RESET
             if (line.equals("RESET")) {
                 clearInternalGraphState();
                 continue;
             }
 
-            // 2. 删除点
             if (line.startsWith("DEL NODE")) {
                 try {
                     int id = Integer.parseInt(line.replace("DEL NODE", "").trim());
@@ -157,7 +217,6 @@ public class MatrixGraphUI {
                 continue;
             }
 
-            // 3. 删除边
             if (line.startsWith("DEL") && line.contains("->")) {
                 try {
                     String clean = line.replace("DEL", "").trim();
@@ -169,7 +228,6 @@ public class MatrixGraphUI {
                 continue;
             }
 
-            // 4. POS
             if (line.startsWith("POS")) {
                 try {
                     String[] parts = line.split(" ");
@@ -181,7 +239,6 @@ public class MatrixGraphUI {
                 continue;
             }
 
-            // 5. 添加/更新边
             if (line.contains("->") && !line.startsWith("DEL")) {
                 try {
                     String[] parts = line.split("->");
@@ -216,7 +273,6 @@ public class MatrixGraphUI {
                 if(t!=null) { t.setX(pos[0]-6); t.setY(pos[1]+6); }
             }
         } else {
-            // 如果执行了 RESET 且没有 POS，则重新布局
             if (dslText.contains("RESET") && !dslText.contains("POS")) {
                 applyCircularLayout();
             }
@@ -225,7 +281,7 @@ public class MatrixGraphUI {
         for (int[] edge : edgesToAdd) { addEdge(edge[0], edge[1], edge[2]); }
         updateAllEdges();
         updateMatrixDisplay();
-        matrixDisplay.setText(matrixDisplay.getText() + "\n\n[DSL 渲染完成]");
+        updateLog("DSL 渲染完成");
     }
 
     public void centerContent() {
@@ -295,7 +351,7 @@ public class MatrixGraphUI {
             }
         }
         updateMatrixDisplay();
-        matrixDisplay.setText(matrixDisplay.getText() + "\n\n[随机图生成完毕]");
+        updateLog("随机图生成完毕");
     }
 
     public void resetToDefault() {
@@ -303,7 +359,7 @@ public class MatrixGraphUI {
         for (int i = 0; i < 5; i++) { addVertex(i, -1, -1); }
         applyCircularLayout();
         updateMatrixDisplay();
-        matrixDisplay.setText(matrixDisplay.getText() + "\n\n[已恢复初始设置]");
+        updateLog("已恢复初始设置");
         centerContent();
     }
 
@@ -325,7 +381,7 @@ public class MatrixGraphUI {
             int start = Integer.parseInt(startText.trim());
             int end = Integer.parseInt(endText.trim());
             if (!graph.isVertexExists(start) || !graph.isVertexExists(end)) {
-                matrixDisplay.setText(graph.getMatrixString() + "\n\n错误: 顶点不存在");
+                updateLog("错误: 顶点不存在");
                 return;
             }
             Dijkstra dijkstra = new Dijkstra(graph);
@@ -342,7 +398,7 @@ public class MatrixGraphUI {
                 animatePath(path);
             }
             matrixDisplay.setText(sb.toString());
-        } catch (NumberFormatException e) { matrixDisplay.setText(graph.getMatrixString() + "\n\n错误: 请输入有效的顶点编号"); }
+        } catch (NumberFormatException e) { updateLog("错误: 请输入有效的顶点编号"); }
     }
 
     public void performDijkstraAll(String startText) {
@@ -351,7 +407,7 @@ public class MatrixGraphUI {
         try {
             int start = Integer.parseInt(startText.trim());
             if (!graph.isVertexExists(start)) {
-                matrixDisplay.setText("错误: 顶点不存在");
+                updateLog("错误: 顶点不存在");
                 return;
             }
             Dijkstra dijkstra = new Dijkstra(graph);
@@ -361,7 +417,7 @@ public class MatrixGraphUI {
             matrixDisplay.setText(sb.toString());
             animateSteps(dijkstra.getSteps());
         } catch (NumberFormatException e) {
-            matrixDisplay.setText("错误: 请输入有效的起点ID");
+            updateLog("错误: 请输入有效的起点ID");
         }
     }
     
@@ -519,18 +575,26 @@ public class MatrixGraphUI {
         updateMatrixDisplay();
     }
     
+    // [修改] 启用拖拽并集成点击连线逻辑
     private void enableDrag(Circle circle, int id) {
-        final class Delta { double x, y; }
-        final Delta dragDelta = new Delta();
+        final class InteractionState { 
+            double startX, startY; 
+            boolean isDragging = false; 
+        }
+        final InteractionState state = new InteractionState();
+
         circle.setOnMousePressed(e -> {
-            dragDelta.x = circle.getCenterX() - e.getX();
-            dragDelta.y = circle.getCenterY() - e.getY();
+            state.startX = circle.getCenterX() - e.getX();
+            state.startY = circle.getCenterY() - e.getY();
+            state.isDragging = false; 
             circle.setCursor(javafx.scene.Cursor.MOVE);
             e.consume();
         });
+        
         circle.setOnMouseDragged(e -> {
-            double newX = e.getX() + dragDelta.x;
-            double newY = e.getY() + dragDelta.y;
+            state.isDragging = true;
+            double newX = e.getX() + state.startX;
+            double newY = e.getY() + state.startY;
             newX = Math.max(20, Math.min(graphPane.getPrefWidth() - 20, newX));
             newY = Math.max(20, Math.min(graphPane.getPrefHeight() - 20, newY));
             circle.setCenterX(newX); circle.setCenterY(newY);
@@ -539,7 +603,14 @@ public class MatrixGraphUI {
             updateConnectedEdges(id);
             e.consume();
         });
-        circle.setOnMouseReleased(e -> circle.setCursor(javafx.scene.Cursor.HAND));
+
+        circle.setOnMouseReleased(e -> {
+            circle.setCursor(javafx.scene.Cursor.HAND);
+            if (!state.isDragging) {
+                // 如果没有发生拖动，则视为点击，触发连线逻辑
+                handleNodeClick(id);
+            }
+        });
     }
 
     private void updateConnectedEdges(int id) {
