@@ -2,7 +2,6 @@ package org.example.ui;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
-import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Text;
@@ -13,20 +12,21 @@ import java.util.List;
 
 public class InsertSortUI extends ControllableSortUI {
     private List<SortFrame> steps;
+    private int tempKeyOriginalIndex = -1; // 暂存 Key 的原始索引
+    
     private final String[] pseudocode = {
-        "for i from 1 to n-1",
-        "  key = arr[i]",
-        "  j = i - 1",
-        "  while j >= 0 and arr[j] > key",
-        "    arr[j + 1] = arr[j]",
-        "    j = j - 1",
-        "  arr[j + 1] = key"
+        "for i from 1 to n-1",             // 0
+        "  key = arr[i]",                  // 1
+        "  j = i - 1",                     // 2
+        "  while j >= 0 and arr[j] > key", // 3
+        "    arr[j + 1] = arr[j]",         // 4
+        "    j = j - 1",                   // 5
+        "  arr[j + 1] = key"               // 6
     };
 
     public InsertSortUI(int[] array) {
         InsertSort sorter = new InsertSort();
         this.steps = sorter.sort(array);
-        
         initBars(array);
         initCodeView(pseudocode);
     }
@@ -34,6 +34,7 @@ public class InsertSortUI extends ControllableSortUI {
     private void initBars(int[] array) {
         barsContainer.getChildren().clear();
         bars = new Rectangle[array.length];
+        labels = new Text[array.length];
         
         for (int i = 0; i < array.length; i++) {
             double height = array[i] * SCALE;
@@ -45,7 +46,8 @@ public class InsertSortUI extends ControllableSortUI {
 
             Text text = new Text(String.valueOf(array[i]));
             text.setX(i * (BAR_WIDTH + SPACING) + BAR_WIDTH / 2 - text.getLayoutBounds().getWidth() / 2);
-            text.setY(BASELINE + 15);
+            text.setY(BASELINE - height - 5);
+            labels[i] = text;
 
             barsContainer.getChildren().addAll(bar, text);
         }
@@ -55,48 +57,62 @@ public class InsertSortUI extends ControllableSortUI {
     public void nextStep() {
         if (currentStep < steps.size()) {
             SortFrame frame = steps.get(currentStep);
-            
-            // [新增] 更新算法解释文本
             updateExplanation(frame.getDescription()); 
 
             int[] state = frame.getArrayState();
             int lineIndex = frame.getLineIndex();
-            int i = frame.getI(); // 当前元素/已排序边界
-            int j = frame.getJ(); // 扫描指针
-            int key = frame.getExtra(); // key值（在数组中是虚拟的）
+            int i = frame.getI(); 
+            // 注意：SortFrame 中的 j 对应的是代码中的 j+1 (数组操作位置)
+            int targetPos = frame.getJ(); 
 
-            // 1. 更新柱状图高度和位置
+            // [修复] 插入排序的 permutation 跟踪逻辑
+            if (permutation != null) {
+                if (lineIndex == 1) { 
+                    // key = arr[i]，记录 key 的原始身份
+                    tempKeyOriginalIndex = permutation[i];
+                } else if (lineIndex == 4) { 
+                    // arr[j + 1] = arr[j]
+                    // frame.getJ() 是 j+1，所以是将 targetPos-1 处的值移到 targetPos
+                    if (targetPos > 0 && targetPos < permutation.length) {
+                        permutation[targetPos] = permutation[targetPos - 1];
+                    }
+                } else if (lineIndex == 6) { 
+                    // arr[j + 1] = key
+                    // 将 key 放入目标位置
+                    if (targetPos >= 0 && targetPos < permutation.length) {
+                        permutation[targetPos] = tempKeyOriginalIndex;
+                    }
+                }
+            }
+
+            // 更新 UI
             for (int k = 0; k < state.length; k++) {
                 double height = state[k] * SCALE;
                 bars[k].setHeight(height);
                 bars[k].setY(BASELINE - height);
+
+                // Update label
+                labels[k].setText(String.valueOf(state[k]));
+                labels[k].setX(k * (BAR_WIDTH + SPACING) + BAR_WIDTH / 2 - labels[k].getLayoutBounds().getWidth() / 2);
+                labels[k].setY(BASELINE - height - 5);
             }
             
-            // 2. 更新颜色
             refreshColors();
             for (int k = 0; k < state.length; k++) {
-                if (k < i) { // 已排序部分
-                    bars[k].setFill(Color.GRAY);
+                if (k < i) { // 已排序
+                    if (!stabilityMode) bars[k].setFill(Color.GRAY);
                 } 
-                if (k == i) { // 边界 (i)
-                    bars[k].setFill(Color.YELLOW);
-                } 
-                if (k == j) { // 当前被比较元素 (j)
-                    bars[k].setFill(Color.ORANGE);
-                }
-                if (k == j + 1 && lineIndex == 6) { // 插入 Key 的位置
-                     bars[k].setFill(Color.RED);
-                }
+                if (k == i) bars[k].setFill(Color.YELLOW); // 边界
+                if (k == targetPos - 1 && lineIndex == 3) bars[k].setFill(Color.ORANGE); // 比较对象
+                if (k == targetPos && lineIndex == 6) bars[k].setFill(Color.RED); // 插入位置
             }
             
-            // 3. 高亮代码
             highlightLine(lineIndex);
-
             currentStep++;
         } else {
             if (currentStep == steps.size()) {
-                for (Rectangle bar : bars) {
-                    bar.setFill(Color.GREEN);
+                if (!stabilityMode) {
+                    for (Rectangle bar : bars) bar.setFill(Color.GREEN);
                 }
                 highlightLine(-1);
                 currentStep++;
@@ -106,10 +122,7 @@ public class InsertSortUI extends ControllableSortUI {
     
     @Override
     public void visualizeSteps(long stepDelay) {
-        if (animation != null) {
-            animation.stop();
-        }
-
+        if (animation != null) animation.stop();
         animation = new Timeline(new KeyFrame(Duration.millis(stepDelay), e -> nextStep()));
         animation.setCycleCount(steps.size() - currentStep + 1);
         animation.setOnFinished(e -> isPlaying = false);
@@ -119,25 +132,20 @@ public class InsertSortUI extends ControllableSortUI {
 
     @Override
     public void reset() {
-        if (animation != null) {
-            animation.stop();
-        }
+        if (animation != null) animation.stop();
         currentStep = 0;
         isPlaying = false;
         
-        int[] initialArray = new int[0];
-        if (steps != null && !steps.isEmpty()) {
-            initialArray = steps.get(0).getArrayState();
-        }
+        int[] initialArray = steps.isEmpty() ? new int[0] : steps.get(0).getArrayState();
         initBars(initialArray);
+        if (stabilityMode) {
+            initPermutation(initialArray);
+            refreshColors();
+        }
         initCodeView(pseudocode);
-        
-        // [新增] 重置解释文本
-        updateExplanation("算法已重置。请点击'下一步'或'播放'开始演示。");
+        updateExplanation("算法已重置。");
     }
 
     @Override
-    public int getTotalSteps() {
-        return steps.size();
-    }
+    public int getTotalSteps() { return steps.size(); }
 }

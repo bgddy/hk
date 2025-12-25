@@ -13,6 +13,7 @@ import org.example.core.*;
 import org.example.ui.*;
 
 import java.util.Random;
+import java.util.function.LongSupplier;
 
 public class MainApp extends Application {
 
@@ -103,7 +104,6 @@ public class MainApp extends Application {
         primaryStage.show();
     }
 
-    // === [关键修改] 全新的 AI 面板初始化方法 ===
     private VBox initAIPanel() {
         VBox box = new VBox(10);
         box.setPadding(new Insets(15));
@@ -117,13 +117,12 @@ public class MainApp extends Application {
         promptInput.setWrapText(true);
         promptInput.setPrefHeight(60);
 
-        // === 按钮区域 ===
         HBox buttonBox = new HBox(8);
         buttonBox.setAlignment(Pos.CENTER_LEFT);
 
-        Button drawBtn = createStyledButton("🎨 执行绘图", "#4caf50"); // 绿色
-        Button askBtn = createStyledButton("💬 咨询教授", "#2196f3");  // 蓝色
-        Button analyzeBtn = createStyledButton("🧠 一键分析", "#9c27b0"); // 紫色
+        Button drawBtn = createStyledButton("🎨 执行绘图", "#4caf50");
+        Button askBtn = createStyledButton("💬 咨询教授", "#2196f3");
+        Button analyzeBtn = createStyledButton("🧠 一键分析", "#9c27b0");
 
         drawBtn.setMaxWidth(Double.MAX_VALUE);
         askBtn.setMaxWidth(Double.MAX_VALUE);
@@ -147,14 +146,12 @@ public class MainApp extends Application {
         Label statusLabel = new Label("准备就绪");
         statusLabel.setStyle("-fx-text-fill: #757575; -fx-font-size: 11px;");
 
-        // === 1. 绘图按钮逻辑 ===
         drawBtn.setOnAction(e -> {
             String input = promptInput.getText();
             if (input.isEmpty()) return;
             handleAIRequest(input, true, statusLabel, responseArea);
         });
 
-        // === 2. 咨询按钮逻辑 (新功能: 自由提问) ===
         askBtn.setOnAction(e -> {
             String input = promptInput.getText();
             if (input.isEmpty()) {
@@ -164,7 +161,6 @@ public class MainApp extends Application {
             handleAIRequest(input, false, statusLabel, responseArea);
         });
 
-        // === 3. 一键分析按钮逻辑 (新功能: 自动Prompt) ===
         analyzeBtn.setOnAction(e -> {
             promptInput.setText("请详细分析当前图的结构特点、连通性以及适合的算法。");
             handleAIRequest("请详细分析当前图的结构特点、连通性以及适合的算法。", false, statusLabel, responseArea);
@@ -174,7 +170,6 @@ public class MainApp extends Application {
         return box;
     }
 
-    // === [新增] 辅助方法：统一处理 AI 请求 ===
     private void handleAIRequest(String input, boolean isDrawing, Label statusLabel, TextArea responseArea) {
         String mode = typeSelector.getValue();
         if (mode == null || (!mode.contains("Adjacency") && !mode.contains("Matrix"))) {
@@ -187,7 +182,6 @@ public class MainApp extends Application {
         statusLabel.setTextFill(Color.BLUE);
         responseArea.setText("");
 
-        // 获取当前 DSL (程序自动读取，不需要手动输入)
         String currentGraphDSL = "";
         if (mode.equals("Adjacency List") && adjGraphUI != null) {
             currentGraphDSL = adjGraphUI.getGraphDSL();
@@ -195,7 +189,6 @@ public class MainApp extends Application {
             currentGraphDSL = matrixGraphUI.getGraphDSL();
         }
 
-        // 根据按钮不同，调用不同的 LLMService 方法
         if (isDrawing) {
             llmService.generateDSL(input, currentGraphDSL).thenAccept(response -> 
                 Platform.runLater(() -> processAIResponse(response, statusLabel, responseArea, true))
@@ -207,7 +200,6 @@ public class MainApp extends Application {
         }
     }
 
-    // === [新增] 辅助方法：处理 AI 返回结果 ===
     private void processAIResponse(String response, Label statusLabel, TextArea responseArea, boolean isDrawingMode) {
         if (isDrawingMode && response.startsWith("[DSL]")) {
             String dslContent = response.replace("[DSL]", "").trim();
@@ -216,7 +208,6 @@ public class MainApp extends Application {
             statusLabel.setText("✅ 图形已更新");
             statusLabel.setTextFill(Color.GREEN);
         } else {
-            // 聊天/分析模式，或者绘图失败转为对话
             String msgContent = response.replace("[MSG]", "").trim();
             responseArea.setText(msgContent);
             statusLabel.setText("💬 回复完毕");
@@ -254,24 +245,53 @@ public class MainApp extends Application {
             Button resetBtn = createStyledButton("重置", "#ff9800");
             Button pauseBtn = createStyledButton("暂停", "#f44336");
             
+            // === 动画速度滑块 ===
+            Slider speedSlider = new Slider(1, 20, 5); // 速度范围: 1x 到 20x
+            speedSlider.setPrefWidth(120);
+            speedSlider.setShowTickMarks(true);
+            speedSlider.setMajorTickUnit(5);
+            speedSlider.setBlockIncrement(1);
+            speedSlider.setTooltip(new Tooltip("调整动画播放速度 (左慢右快)"));
+            
+            Label speedLabel = new Label("⚡ 速度:");
+            speedLabel.setStyle("-fx-font-weight: bold;");
+
+            // 辅助：计算延迟毫秒数 (基础值 600ms / 倍速)
+            LongSupplier calcDelay = () -> (long) (600 / speedSlider.getValue());
+            
+            // 绑定滑块监听：拖动时实时改变速度
+            speedSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+                long newDelay = (long) (600 / newVal.doubleValue());
+                if (type.equals("Selection Sort") && selectionSortUI != null) {
+                    selectionSortUI.setAnimationSpeed(newDelay);
+                } else if (type.equals("Insertion Sort") && insertSortUI != null) {
+                    insertSortUI.setAnimationSpeed(newDelay);
+                } else if (type.equals("Quick Sort") && fastSortUI != null) {
+                    fastSortUI.setAnimationSpeed(newDelay);
+                }
+            });
+
             controlPanel = new HBox(15);
             controlPanel.setPadding(new Insets(15));
             controlPanel.setStyle("-fx-background-color: linear-gradient(to right, #e8f5e8, #e3f2fd); -fx-border-color: #c8e6c9; -fx-border-radius: 8;");
             controlPanel.setPrefHeight(70);
-            controlPanel.getChildren().addAll(autoPlayBtn, nextStepBtn, pauseBtn, resetBtn);
+            
+            // 将滑块加入控制面板
+            controlPanel.getChildren().addAll(autoPlayBtn, nextStepBtn, pauseBtn, resetBtn, new Separator(), speedLabel, speedSlider);
+            controlPanel.setAlignment(Pos.CENTER_LEFT);
             
             if (type.equals("Selection Sort") && selectionSortUI != null) {
-                autoPlayBtn.setOnAction(ev -> selectionSortUI.visualizeSteps(50L));
+                autoPlayBtn.setOnAction(ev -> selectionSortUI.visualizeSteps(calcDelay.getAsLong()));
                 nextStepBtn.setOnAction(ev -> selectionSortUI.nextStep());
                 resetBtn.setOnAction(ev -> selectionSortUI.reset());
                 pauseBtn.setOnAction(ev -> selectionSortUI.pause());
             } else if (type.equals("Insertion Sort") && insertSortUI != null) {
-                autoPlayBtn.setOnAction(ev -> insertSortUI.visualizeSteps(50L));
+                autoPlayBtn.setOnAction(ev -> insertSortUI.visualizeSteps(calcDelay.getAsLong()));
                 nextStepBtn.setOnAction(ev -> insertSortUI.nextStep());
                 resetBtn.setOnAction(ev -> insertSortUI.reset());
                 pauseBtn.setOnAction(ev -> insertSortUI.pause());
             } else if (type.equals("Quick Sort") && fastSortUI != null) {
-                autoPlayBtn.setOnAction(ev -> fastSortUI.visualizeSteps(100L));
+                autoPlayBtn.setOnAction(ev -> fastSortUI.visualizeSteps(calcDelay.getAsLong()));
                 nextStepBtn.setOnAction(ev -> fastSortUI.nextStep());
                 resetBtn.setOnAction(ev -> fastSortUI.reset());
                 pauseBtn.setOnAction(ev -> fastSortUI.pause());
@@ -280,12 +300,14 @@ public class MainApp extends Application {
                 
                 Button newDataBtn = createStyledButton("换一组数据", "#9c27b0");
                 newDataBtn.setOnAction(ev -> sortingRaceUI.generateNewData(100));
-                controlPanel.getChildren().add(newDataBtn);
+                controlPanel.getChildren().add(1, newDataBtn); // 插在 NextStep 前面
 
                 autoPlayBtn.setOnAction(ev -> sortingRaceUI.startRace());
                 nextStepBtn.setOnAction(ev -> sortingRaceUI.nextStep());
                 resetBtn.setOnAction(ev -> sortingRaceUI.resetRace());
                 pauseBtn.setOnAction(ev -> sortingRaceUI.pauseRace());
+                // 竞速模式通常不使用全局滑块
+                speedSlider.setDisable(true); 
             }
         }
 
@@ -361,6 +383,7 @@ public class MainApp extends Application {
                         container.getChildren().add(finalControlPanel);
                     } catch (Exception ex) {
                         System.out.println("输入解析错误");
+                        new Alert(Alert.AlertType.ERROR, "请输入有效的整数序列，用逗号分隔！").show();
                     }
                     isStabilityTest = false;
                 });
@@ -425,7 +448,6 @@ public class MainApp extends Application {
         Button bfsBtn = createStyledButton("BFS" , "#4caf50");
         Button dfsBtn = createStyledButton("DFS", "#2196f3");
         
-        // === 现有的 Kruskal 和 Prim 按钮 ===
         Button kruskalBtn = createStyledButton("Kruskal", "#ff9800");
         Button primBtn = createStyledButton("Prim", "#ff5722");
         
@@ -434,18 +456,20 @@ public class MainApp extends Application {
         HBox algoBox2 = new HBox(5);
         Button dijBtn = createStyledButton("Dijkstra(单)", "#e91e63");
         Button dijAllBtn = createStyledButton("Dijkstra(全)", "#c2185b");
+        Button aStarBtn = createStyledButton("A* Search", "#9c27b0"); 
         
-        // [新增] A* 按钮
-        Button aStarBtn = createStyledButton("A* Search", "#9c27b0"); // 使用紫色以示区分
-        
-        // 将 A* 加入布局 (建议放在 Dijkstra 旁边)
         algoBox2.getChildren().addAll(kruskalBtn, primBtn, dijBtn, aStarBtn); 
         
-        // 如果想更整齐，也可以另起一行，或者把 dijAllBtn 移走，看你布局喜好
         HBox algoBox3 = new HBox(5);
         algoBox3.getChildren().add(dijAllBtn);
+        
+        // === [新增] 割点分析按钮 (添加在 algoBox3) ===
+        Button apBtn = createStyledButton("寻找割点", "#d32f2f"); // 红色警示风格，非常醒目
+        apBtn.setTooltip(new Tooltip("寻找无向图中的关键节点（Articulation Points）"));
+        apBtn.setOnAction(e -> ui.performArticulationPoints());
+        
+        algoBox3.getChildren().add(apBtn); // 加入到 Dijkstra(全) 旁边
 
-        // === 新增：动画控制按钮 ===
         Label controlLabel = new Label("动画控制:");
         controlLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12px;");
         HBox controlBox = new HBox(5);
@@ -480,17 +504,14 @@ public class MainApp extends Application {
         bfsBtn.setOnAction(e -> ui.performBFS(startT.getText()));
         dfsBtn.setOnAction(e -> ui.performDFS(startT.getText()));
         
-        // === 绑定 MST 事件 ===
         kruskalBtn.setOnAction(e -> ui.performMST());
         primBtn.setOnAction(e -> ui.performPrim());
         
         dijBtn.setOnAction(e -> ui.performDijkstra(startT.getText(), endT.getText()));
         dijAllBtn.setOnAction(e -> ui.performDijkstraAll(startT.getText()));
 
-        // [新增] 绑定 A* 按钮事件
         aStarBtn.setOnAction(e -> ui.performAStar(startT.getText(), endT.getText()));
 
-        // === 绑定控制按钮 ===
         playBtn.setOnAction(e -> ui.play());
         pauseBtn.setOnAction(e -> ui.pause());
         nextBtn.setOnAction(e -> ui.nextStep());
@@ -500,7 +521,7 @@ public class MainApp extends Application {
             new Label("边管理:"), edgeInputs, 
             new Separator(), graphManageLabel, graphManagementButtons,
             new Separator(), dslLabel, dslArea, renderDslBtn,
-            new Separator(), algoLabel, algoBox, algoBox2, algoBox3, // 别忘了把 algoBox3 加进去
+            new Separator(), algoLabel, algoBox, algoBox2, algoBox3,
             new Separator(), controlLabel, controlBox 
         );
     }

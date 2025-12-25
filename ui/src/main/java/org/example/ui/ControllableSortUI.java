@@ -11,6 +11,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Text;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -21,17 +22,18 @@ public abstract class ControllableSortUI {
     protected Pane barsContainer;  
     protected ListView<String> codeListView; 
     
-    // 解释文本区域和右侧容器
     protected TextArea explanationArea;
     protected VBox rightPanel;
 
     protected Rectangle[] bars;
+    protected Text[] labels;
     protected Animation animation;
     protected int currentStep = 0;
     protected boolean isPlaying = false;
     protected boolean stabilityMode = false;
     protected boolean isRaceMode = false; 
     
+    // 用于跟踪每个位置当前的元素在原始数组中的索引
     protected int[] permutation; 
     protected Map<Integer, Color> colorMap = new HashMap<>();
     
@@ -51,9 +53,7 @@ public abstract class ControllableSortUI {
         root.getChildren().add(barsContainer);
     }
 
-    // [修复] 修改了此方法，防止重置时重复添加右侧面板
     protected void initCodeView(String[] pseudocode) {
-        // 1. 关键修复：如果右侧面板已经存在，先从根布局中移除它！
         if (rightPanel != null) {
             root.getChildren().remove(rightPanel);
         }
@@ -82,7 +82,6 @@ public abstract class ControllableSortUI {
             }
         });
 
-        // 初始化解释区域
         explanationArea = new TextArea();
         explanationArea.setPrefSize(280, 100);
         explanationArea.setWrapText(true);
@@ -90,12 +89,20 @@ public abstract class ControllableSortUI {
         explanationArea.setPromptText("算法步骤解释将显示在这里...");
         explanationArea.setStyle("-fx-font-family: 'Microsoft YaHei', sans-serif; -fx-font-size: 14px; -fx-control-inner-background: #f4f4f4;");
 
-        // 创建新的右侧面板
-        rightPanel = new VBox(10); // 间距 10
+        rightPanel = new VBox(10); 
         rightPanel.getChildren().addAll(new Label("算法伪代码:"), codeListView, new Label("当前步骤详解:"), explanationArea);
 
-        // 添加到根布局
         root.getChildren().add(rightPanel);
+    }
+
+    // === [新增] 动态调整动画速度 ===
+    // 允许在动画播放过程中实时改变速度
+    public void setAnimationSpeed(long delay) {
+        // 只有当前正在播放时，才需要重启时间轴来应用新速度
+        // 如果当前是暂停状态，只需要下次调用 visualizeSteps 时传入新值即可（这由 MainApp 控制）
+        if (isPlaying() && animation != null) {
+            visualizeSteps(delay);
+        }
     }
 
     protected void highlightLine(int lineIndex) {
@@ -107,7 +114,6 @@ public abstract class ControllableSortUI {
         }
     }
     
-    // 更新解释文本的方法
     protected void updateExplanation(String text) {
         if (explanationArea != null) {
             explanationArea.setText(text);
@@ -124,18 +130,28 @@ public abstract class ControllableSortUI {
     public int getCurrentStep() { return currentStep; }
     public abstract int getTotalSteps();
     
-    public void setStabilityMode(boolean enable, int[] originalData) { this.stabilityMode = enable; if (!enable) return; initPermutation(originalData); refreshColors(); }
+    public void setStabilityMode(boolean enable, int[] originalData) { 
+        this.stabilityMode = enable; 
+        if (enable && originalData != null) {
+            initPermutation(originalData); 
+            refreshColors(); 
+        }
+    }
     public void setRaceMode(boolean enable) { this.isRaceMode = enable; }
     
-    private void initPermutation(int[] originalData) {
+    // 初始化颜色映射：相同值的元素会获得不同的颜色（蓝、红、紫、橙）
+    protected void initPermutation(int[] originalData) {
         this.permutation = new int[originalData.length];
         for (int i = 0; i < originalData.length; i++) permutation[i] = i;
+        
         Map<Integer, List<Integer>> valueIndices = new HashMap<>();
         for (int i = 0; i < originalData.length; i++) {
             valueIndices.computeIfAbsent(originalData[i], k -> new ArrayList<>()).add(i);
         }
+        
         colorMap.clear();
         Color[] palette = {Color.BLUE, Color.RED, Color.PURPLE, Color.ORANGE}; 
+        
         for (List<Integer> indices : valueIndices.values()) {
             if (indices.size() > 1) { 
                 for (int k = 0; k < indices.size(); k++) {
@@ -144,19 +160,25 @@ public abstract class ControllableSortUI {
             }
         }
     }
+
+    // 根据 permutation 刷新所有柱子的颜色
     protected void refreshColors() {
-        if (!stabilityMode || bars == null) return;
+        if (!stabilityMode || bars == null || permutation == null) return;
         for (int i = 0; i < bars.length; i++) {
             int originalIndex = permutation[i];
+            // 如果该元素的原始索引在 colorMap 中（说明它是重复值之一），使用特定颜色
             if (colorMap.containsKey(originalIndex)) {
                 bars[i].setFill(colorMap.get(originalIndex));
             } else {
+                // 非重复元素，默认浅绿
                 bars[i].setFill(Color.LIGHTGREEN); 
             }
         }
     }
+
+    // 交换 permutation 中的两个位置，模拟元素交换
     protected void swapPermutation(int i, int j) {
-        if (permutation == null) return;
+        if (permutation == null || i < 0 || j < 0 || i >= permutation.length || j >= permutation.length) return;
         int temp = permutation[i];
         permutation[i] = permutation[j];
         permutation[j] = temp;

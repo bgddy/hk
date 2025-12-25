@@ -12,6 +12,9 @@ import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
+import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.stage.FileChooser;
 import javafx.util.Duration;
@@ -28,7 +31,12 @@ public class MatrixGraphUI {
     private BorderPane root;
     private Pane graphPane;
     private ScrollPane graphScrollPane;
-    private Text matrixDisplay;
+    
+    // [修改] 分离矩阵显示和日志显示
+    private VBox matrixVisualContainer; // 用于显示图形化矩阵
+    private Text logDisplay;            // 仅用于显示日志
+    private StringBuilder logHistory = new StringBuilder();
+
     private MatrixGraph graph;
     private Timeline currentAnimation;
     
@@ -37,7 +45,6 @@ public class MatrixGraphUI {
     private Map<Integer, Circle> nodes = new HashMap<>();
     private Map<Integer, Text> nodeLabels = new HashMap<>();
 
-    // [新增] 用于记录当前选中的节点ID (用于连线)
     private Integer selectedNodeId = null;
 
     private static class EdgeUI {
@@ -52,13 +59,13 @@ public class MatrixGraphUI {
         this.graph = graph;
         
         root = new BorderPane();
-        root.setPrefSize(1050, 600);
+        root.setPrefSize(1150, 650); // 稍微调大窗口
         
+        // --- 中间：绘图区域 ---
         graphPane = new Pane();
         graphPane.setPrefSize(2000, 2000); 
         graphPane.setStyle("-fx-background-color: #f8f9fa;");
 
-        // [新增] 点击空白处取消选中
         graphPane.setOnMouseClicked(e -> {
             if (e.getTarget() == graphPane) {
                 if (selectedNodeId != null) {
@@ -70,15 +77,12 @@ public class MatrixGraphUI {
         });
         
         Group scrollContent = new Group(graphPane);
-        
         graphScrollPane = new ScrollPane(scrollContent);
-        graphScrollPane.setPrefSize(650, 600);
         graphScrollPane.setPannable(true); 
         graphScrollPane.setStyle("-fx-background-color: transparent; -fx-border-color: #dee2e6; -fx-border-width: 1;");
         
         Button zoomInBtn = createZoomButton("放大", 1.2);
         Button zoomOutBtn = createZoomButton("缩小", 0.8);
-        
         VBox zoomControls = new VBox(10, zoomInBtn, zoomOutBtn);
         zoomControls.setAlignment(Pos.CENTER);
         zoomControls.setPadding(new Insets(20));
@@ -89,30 +93,43 @@ public class MatrixGraphUI {
         centerStack.getChildren().addAll(graphScrollPane, zoomControls);
         StackPane.setAlignment(zoomControls, Pos.TOP_RIGHT);
 
-        VBox matrixPane = new VBox(10);
-        matrixPane.setPadding(new Insets(15));
-        matrixPane.setPrefHeight(350);
-        matrixPane.setStyle("-fx-background-color: #ffffff; -fx-border-color: #dee2e6; -fx-border-width: 1;");
+        // --- 右侧：数据与日志面板 ---
+        VBox rightPane = new VBox(0);
+        rightPane.setPrefWidth(420); 
+        rightPane.setStyle("-fx-background-color: #ffffff; -fx-border-color: #dee2e6; -fx-border-width: 0 0 0 1;");
+
+        // 1. 矩阵标题
+        Label matrixTitle = new Label(" 邻接矩阵 (Adjacency Matrix)");
+        matrixTitle.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #2c3e50; -fx-padding: 10; -fx-background-color: #ecf0f1; -fx-border-color: #bdc3c7; -fx-border-width: 0 0 1 0;");
+        matrixTitle.setMaxWidth(Double.MAX_VALUE);
+
+        // 2. 矩阵可视化容器
+        matrixVisualContainer = new VBox();
+        matrixVisualContainer.setAlignment(Pos.TOP_CENTER);
+        matrixVisualContainer.setPadding(new Insets(15));
+        matrixVisualContainer.setStyle("-fx-background-color: #ffffff;");
         
-        Text matrixTitle = new Text("数据与日志");
-        matrixTitle.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-fill: #2c3e50;");
+        ScrollPane matrixScroll = new ScrollPane(matrixVisualContainer);
+        matrixScroll.setFitToWidth(true);
+        matrixScroll.setPrefHeight(350); // 给矩阵区域固定高度
+        matrixScroll.setStyle("-fx-background-color: transparent; -fx-background: #ffffff;");
+
+        // 3. 日志标题
+        Label logTitle = new Label(" 运行日志");
+        logTitle.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #555; -fx-padding: 8; -fx-background-color: #f0f0f0; -fx-border-color: #e0e0e0; -fx-border-width: 1 0 1 0;");
+        logTitle.setMaxWidth(Double.MAX_VALUE);
         
-        ScrollPane textScrollPane = new ScrollPane();
-        textScrollPane.setFitToWidth(false); 
-        textScrollPane.setPrefHeight(300);
-        textScrollPane.setStyle("-fx-background-color: transparent; -fx-background: #ffffff;");
+        // 4. 日志内容
+        logDisplay = new Text();
+        logDisplay.setStyle("-fx-font-family: 'Segoe UI', sans-serif; -fx-font-size: 11px; -fx-fill: #34495e;");
         
-        matrixDisplay = new Text();
-        matrixDisplay.setStyle("-fx-font-family: 'Monaco', 'Menlo', 'Consolas', monospace; -fx-font-size: 12px; -fx-fill: #34495e;");
+        ScrollPane logScroll = new ScrollPane(logDisplay);
+        logScroll.setFitToWidth(true);
+        logScroll.setStyle("-fx-background-color: transparent; -fx-background: #ffffff;");
+        logDisplay.wrappingWidthProperty().bind(logScroll.widthProperty().subtract(20));
         
-        textScrollPane.setContent(matrixDisplay);
-        matrixPane.getChildren().addAll(matrixTitle, textScrollPane);
-        
-        VBox rightPane = new VBox(10);
-        rightPane.setPrefWidth(380); 
-        rightPane.setPadding(new Insets(0, 0, 0, 10));
-        rightPane.getChildren().add(matrixPane); 
-        VBox.setVgrow(matrixPane, Priority.ALWAYS);
+        rightPane.getChildren().addAll(matrixTitle, matrixScroll, logTitle, logScroll);
+        VBox.setVgrow(logScroll, Priority.ALWAYS); // 日志占满剩余空间
         
         root.setCenter(centerStack);
         root.setRight(rightPane);
@@ -124,54 +141,149 @@ public class MatrixGraphUI {
         centerContent(); 
     }
 
-    // [新增] 处理节点点击事件 (选中/连线)
+    // [核心优化] 渲染图形化矩阵
+    private void renderMatrix() {
+        matrixVisualContainer.getChildren().clear();
+
+        // 1. 获取所有有效的顶点 (过滤掉已删除的点)
+        List<Integer> validVertices = new ArrayList<>();
+        int n = graph.verticesNumber();
+        for(int i=0; i<n; i++) {
+            if(graph.isVertexExists(i)) validVertices.add(i);
+        }
+
+        if (validVertices.isEmpty()) {
+            matrixVisualContainer.getChildren().add(new Text("无数据 (图为空)"));
+            return;
+        }
+
+        // 2. 创建 Grid
+        GridPane grid = new GridPane();
+        grid.setAlignment(Pos.CENTER);
+        grid.setHgap(2); 
+        grid.setVgap(2);
+        grid.setStyle("-fx-background-color: #ecf0f1; -fx-padding: 2;"); // 网格线颜色
+
+        // 3. 渲染表头
+        // 左上角空白
+        grid.add(createCell("", Color.web("#bdc3c7"), true), 0, 0);
+
+        for (int i = 0; i < validVertices.size(); i++) {
+            int vId = validVertices.get(i);
+            // 列头 (上方)
+            grid.add(createCell(String.valueOf(vId), Color.web("#dfe6e9"), true), i + 1, 0);
+            // 行头 (左侧)
+            grid.add(createCell(String.valueOf(vId), Color.web("#dfe6e9"), true), 0, i + 1);
+        }
+
+        // 4. 渲染数据单元格
+        for (int i = 0; i < validVertices.size(); i++) {
+            for (int j = 0; j < validVertices.size(); j++) {
+                int u = validVertices.get(i);
+                int v = validVertices.get(j);
+                
+                int weight = graph.getEdge(u, v);
+                
+                // 样式逻辑
+                String text;
+                Color bgColor;
+                boolean isHeader = false;
+
+                if (u == v) {
+                    // 对角线
+                    text = (weight == 0 || weight == Integer.MAX_VALUE) ? "0" : String.valueOf(weight);
+                    bgColor = Color.web("#f7f9f9"); // 极淡灰
+                } else if (weight > 0 && weight < Integer.MAX_VALUE) {
+                    // 有效边
+                    text = String.valueOf(weight);
+                    bgColor = Color.web("#d6eaf8"); // 浅蓝高亮
+                } else {
+                    // 无边 (通常 0 或 INF)
+                    text = "∞"; // 或者 "0"
+                    bgColor = Color.WHITE;
+                }
+                
+                grid.add(createCell(text, bgColor, isHeader), j + 1, i + 1);
+            }
+        }
+
+        matrixVisualContainer.getChildren().add(grid);
+    }
+
+    // [新增] 辅助方法：创建单元格
+    private StackPane createCell(String text, Color bg, boolean isHeader) {
+        StackPane cell = new StackPane();
+        double size = 30; // 单元格大小
+        
+        Rectangle rect = new Rectangle(size, size);
+        rect.setFill(bg);
+        
+        Text t = new Text(text);
+        if (isHeader) {
+            t.setFont(Font.font("Arial", FontWeight.BOLD, 12));
+            t.setFill(Color.web("#2c3e50"));
+        } else {
+            t.setFont(Font.font("Consolas", 12));
+            if (text.equals("∞") || text.equals("0")) {
+                t.setFill(Color.LIGHTGRAY);
+            } else {
+                t.setFill(Color.BLACK);
+            }
+        }
+        
+        cell.getChildren().addAll(rect, t);
+        return cell;
+    }
+
+    // [修改] 更新日志显示
+    private void updateLog(String msg) {
+        if (msg == null || msg.isEmpty()) return;
+        String time = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+        logHistory.insert(0, String.format("[%s] %s\n", time, msg));
+        if (logHistory.length() > 3000) logHistory.setLength(3000);
+        logDisplay.setText(logHistory.toString());
+    }
+
+    // [修改] 统一刷新入口
+    private void updateMatrixDisplay() {
+        if (graph != null) {
+            renderMatrix();
+        }
+    }
+
+    // === 以下逻辑与之前保持一致 ===
+
     private void handleNodeClick(int clickedId) {
         if (selectedNodeId == null) {
-            // 1. 还没有选中起点，当前点击作为起点
             selectedNodeId = clickedId;
             Circle c = nodes.get(clickedId);
-            if (c != null) c.setFill(Color.CYAN); // 变色提示
-            updateLog("已选中起点: " + clickedId + "，请点击另一个节点进行连线...");
+            if (c != null) c.setFill(Color.CYAN); 
+            updateLog("选中起点: " + clickedId);
         } else {
-            // 2. 已经有起点，当前点击作为终点
             if (selectedNodeId == clickedId) {
-                // 如果点了自己，取消选中
                 resetStyles();
                 selectedNodeId = null;
                 updateLog("取消选中");
             } else {
-                // 弹出对话框输入权重
                 TextInputDialog dialog = new TextInputDialog("1");
                 dialog.setTitle("添加边");
-                dialog.setHeaderText("创建边: " + selectedNodeId + " -> " + clickedId);
-                dialog.setContentText("请输入权重:");
+                dialog.setHeaderText(selectedNodeId + " -> " + clickedId);
+                dialog.setContentText("权重:");
 
                 Optional<String> result = dialog.showAndWait();
                 result.ifPresent(wStr -> {
                     try {
                         int w = Integer.parseInt(wStr);
                         addEdge(selectedNodeId, clickedId, w);
-                        updateLog("成功添加边: " + selectedNodeId + " -> " + clickedId + " (权重: " + w + ")");
+                        updateLog("添加边: " + selectedNodeId + " -> " + clickedId + " (w:" + w + ")");
                     } catch (NumberFormatException ex) {
-                        updateLog("无效权重，操作取消");
+                        updateLog("无效权重");
                     }
                 });
-                
-                // 连线完成后重置状态
                 resetStyles();
                 selectedNodeId = null;
             }
         }
-    }
-
-    // [新增] 更新日志显示
-    private void updateLog(String msg) {
-        if (msg == null || msg.isEmpty()) return;
-        String currentText = matrixDisplay.getText();
-        // 简单地追加在最前面，或者保留矩阵信息
-        // 为了不破坏矩阵显示，我们将日志追加在矩阵下方
-        // 由于 updateMatrixDisplay 会重置文本，这里我们暂时追加
-        matrixDisplay.setText(graph.getMatrixString() + "\n\n[Log] " + msg);
     }
 
     public String getGraphDSL() {
@@ -185,7 +297,7 @@ public class MatrixGraphUI {
             for (int j = 0; j < n; j++) {
                 if (!graph.isVertexExists(j)) continue;
                 int weight = graph.getEdge(i, j);
-                if (weight != 0) {
+                if (weight != 0 && weight != Integer.MAX_VALUE) {
                     sb.append(i).append(" -> ").append(j).append(" : ").append(weight).append("\n");
                 }
             }
@@ -221,9 +333,7 @@ public class MatrixGraphUI {
                 try {
                     String clean = line.replace("DEL", "").trim();
                     String[] parts = clean.split("->");
-                    int u = Integer.parseInt(parts[0].trim());
-                    int v = Integer.parseInt(parts[1].trim());
-                    removeEdge(u, v);
+                    removeEdge(Integer.parseInt(parts[0].trim()), Integer.parseInt(parts[1].trim()));
                 } catch (Exception e) {}
                 continue;
             }
@@ -253,12 +363,8 @@ public class MatrixGraphUI {
                     
                     while (graph.verticesNumber() <= Math.max(u, v)) { graph.addVertex(); }
                     addVertex(u, -1, -1); addVertex(v, -1, -1);
-                    
-                    int currentWeight = graph.getEdge(u, v);
-                    if (currentWeight != w) {
-                        edgesToAdd.add(new int[]{u, v, w});
-                    }
-                } catch (Exception e) { System.out.println("DSL 解析错误: " + line); }
+                    edgesToAdd.add(new int[]{u, v, w});
+                } catch (Exception e) { }
             }
         }
         
@@ -267,8 +373,7 @@ public class MatrixGraphUI {
                 if (!nodes.containsKey(id)) addVertex(id, -1, -1);
                 Circle c = nodes.get(id);
                 double[] pos = loadedPositions.get(id);
-                c.setCenterX(pos[0]);
-                c.setCenterY(pos[1]);
+                c.setCenterX(pos[0]); c.setCenterY(pos[1]);
                 Text t = nodeLabels.get(id);
                 if(t!=null) { t.setX(pos[0]-6); t.setY(pos[1]+6); }
             }
@@ -293,7 +398,7 @@ public class MatrixGraphUI {
 
     private Button createZoomButton(String text, double factor) {
         Button btn = new Button(text);
-        btn.setStyle("-fx-background-color: white; -fx-border-color: #bbb; -fx-border-radius: 5; -fx-background-radius: 5; -fx-font-size: 12px; -fx-font-weight: bold; -fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 3, 0, 0, 1);");
+        btn.setStyle("-fx-background-color: white; -fx-border-color: #bbb; -fx-border-radius: 5; -fx-font-size: 12px; -fx-font-weight: bold; -fx-cursor: hand;");
         btn.setPrefSize(50, 30);
         btn.setOnAction(e -> zoom(factor));
         return btn;
@@ -314,12 +419,9 @@ public class MatrixGraphUI {
                     double dy = c.getCenterY() - centerY;
                     double newX = centerX + dx * factor;
                     double newY = centerY + dy * factor;
-                    
                     newX = Math.max(20, Math.min(graphPane.getPrefWidth() - 20, newX));
                     newY = Math.max(20, Math.min(graphPane.getPrefHeight() - 20, newY));
-                    
-                    c.setCenterX(newX);
-                    c.setCenterY(newY);
+                    c.setCenterX(newX); c.setCenterY(newY);
                     Text t = nodeLabels.get(id);
                     if (t != null) { t.setX(newX - 6); t.setY(newY + 6); }
                 }
@@ -345,7 +447,7 @@ public class MatrixGraphUI {
             for (int j = 0; j < n; j++) {
                 if (!graph.isVertexExists(j)) continue;
                 int weight = graph.getEdge(i, j);
-                if (weight > 0) {
+                if (weight > 0 && weight != Integer.MAX_VALUE) {
                     if (i < j || (i == j)) { addEdge(i, j, weight); }
                 }
             }
@@ -371,6 +473,7 @@ public class MatrixGraphUI {
         nodeLabels.clear();
         graphPane.getChildren().clear();
         edges.clear();
+        logHistory.setLength(0);
     }
 
     // Dijkstra Methods
@@ -386,18 +489,16 @@ public class MatrixGraphUI {
             }
             Dijkstra dijkstra = new Dijkstra(graph);
             List<Integer> path = dijkstra.findShortestPath(start, end);
-            StringBuilder sb = new StringBuilder(graph.getMatrixString());
-            sb.append("\n\n").append(dijkstra.getProcessLog());
+            
+            updateLog("Dijkstra 搜索: " + start + " -> " + end);
+            
             if (path.isEmpty() && start != end) {
-                sb.append("\n结果: 无法从 ").append(start).append( " 到达 ").append(end);
+                updateLog("结果: 不可达");
             } else {
-                sb.append("\n=== 最短路径结果 ===\n");
-                sb.append("路径: ");
-                for (int i = 0; i < path.size(); i++) { sb.append(path.get(i)).append(i < path.size() - 1 ? " -> " : ""); }
-                sb.append("\n总权重: ").append(dijkstra.getShortestDistance(end));
+                updateLog("路径: " + path);
+                updateLog("总权重: " + dijkstra.getShortestDistance(end));
                 animatePath(path);
             }
-            matrixDisplay.setText(sb.toString());
         } catch (NumberFormatException e) { updateLog("错误: 请输入有效的顶点编号"); }
     }
 
@@ -412,9 +513,10 @@ public class MatrixGraphUI {
             }
             Dijkstra dijkstra = new Dijkstra(graph);
             dijkstra.findShortestPath(start, -1); 
-            StringBuilder sb = new StringBuilder(graph.getMatrixString());
-            sb.append("\n\n").append(dijkstra.getAllPathsResult(start));
-            matrixDisplay.setText(sb.toString());
+            
+            updateLog("Dijkstra 全图结果:");
+            updateLog(dijkstra.getAllPathsResult(start));
+            
             animateSteps(dijkstra.getSteps());
         } catch (NumberFormatException e) {
             updateLog("错误: 请输入有效的起点ID");
@@ -463,8 +565,10 @@ public class MatrixGraphUI {
                             String oldKey = currentPathEdges.get(targetNode);
                             if (edges.containsKey(oldKey) && !oldKey.equals(stepEdgeKey)) {
                                 EdgeUI oldUI = edges.get(oldKey);
-                                oldUI.line.setStroke(Color.LIGHTGRAY);
-                                oldUI.line.setStrokeWidth(2);
+                                if (oldUI != null) {
+                                    oldUI.line.setStroke(Color.LIGHTGRAY);
+                                    oldUI.line.setStrokeWidth(2);
+                                }
                             }
                         }
                         highlightEdge(newEdge, Color.RED);
@@ -538,10 +642,6 @@ public class MatrixGraphUI {
         for (EdgeUI e : edges.values()) { e.line.setStroke(Color.GRAY); e.line.setStrokeWidth(2); }
     }
 
-    private void updateMatrixDisplay() {
-        if (graph != null) { matrixDisplay.setText(graph.getMatrixString()); }
-    }
-
     public void addVertex(int id) {
         addVertex(id, -1, -1);
     }
@@ -550,6 +650,7 @@ public class MatrixGraphUI {
         if (nodes.containsKey(id)) return;
         if (id >= graph.verticesNumber()) { while (graph.verticesNumber() <= id) { graph.addVertex(); } }
         graph.setVertexExists(id, true);
+        
         Circle circle = new Circle(20, Color.LIGHTBLUE);
         circle.setStroke(Color.BLACK);
         circle.setStrokeWidth(2);
@@ -575,7 +676,6 @@ public class MatrixGraphUI {
         updateMatrixDisplay();
     }
     
-    // [修改] 启用拖拽并集成点击连线逻辑
     private void enableDrag(Circle circle, int id) {
         final class InteractionState { 
             double startX, startY; 
@@ -607,10 +707,54 @@ public class MatrixGraphUI {
         circle.setOnMouseReleased(e -> {
             circle.setCursor(javafx.scene.Cursor.HAND);
             if (!state.isDragging) {
-                // 如果没有发生拖动，则视为点击，触发连线逻辑
                 handleNodeClick(id);
             }
         });
+    }
+
+    public void removeVertex(int id) {
+        if (!nodes.containsKey(id)) return;
+        graph.setVertexExists(id, false); // 标记删除
+        graphPane.getChildren().removeAll(nodes.get(id), nodeLabels.get(id));
+        nodes.remove(id); nodeLabels.remove(id);
+        
+        Iterator<Map.Entry<String, EdgeUI>> it = edges.entrySet().iterator();
+        while(it.hasNext()){
+            Map.Entry<String, EdgeUI> entry = it.next();
+            String[] parts = entry.getKey().split("-");
+            int u = Integer.parseInt(parts[0]);
+            int v = Integer.parseInt(parts[1]);
+            if(u == id || v == id) {
+                graph.delEdge(u, v);
+                graphPane.getChildren().removeAll(entry.getValue().line, entry.getValue().label);
+                it.remove();
+            }
+        }
+        updateMatrixDisplay();
+    }
+
+    public void addEdge(int from, int to, int weight) {
+        if (from == to) return;
+        graph.setEdge(from, to, weight);
+        String key = Math.min(from,to) + "-" + Math.max(from,to);
+        if (edges.containsKey(key)) {
+            edges.get(key).label.setText(String.valueOf(weight));
+        } else {
+            Line line = new Line(); line.setStrokeWidth(2); line.setStroke(Color.GRAY);
+            Text text = new Text(String.valueOf(weight)); text.setFill(Color.DARKRED);
+            graphPane.getChildren().add(0, line); graphPane.getChildren().add(text);
+            edges.put(key, new EdgeUI(line, text));
+        }
+        updateConnectedEdges(from);
+        updateMatrixDisplay();
+    }
+
+    public void removeEdge(int from, int to) {
+        graph.delEdge(from, to);
+        String key = Math.min(from,to) + "-" + Math.max(from,to);
+        EdgeUI ui = edges.remove(key);
+        if (ui != null) graphPane.getChildren().removeAll(ui.line, ui.label);
+        updateMatrixDisplay();
     }
 
     private void updateConnectedEdges(int id) {
@@ -633,105 +777,38 @@ public class MatrixGraphUI {
     
     private void updateSingleEdge(EdgeUI ui, int v1, int v2) {
         Circle c1 = nodes.get(v1); Circle c2 = nodes.get(v2);
-        if(c1 != null && c2 != null) {
-            Line line = ui.line;
-            line.setStartX(c1.getCenterX()); line.setStartY(c1.getCenterY());
-            line.setEndX(c2.getCenterX());   line.setEndY(c2.getCenterY());
-            ui.label.setX((c1.getCenterX() + c2.getCenterX()) / 2);
-            ui.label.setY((c1.getCenterY() + c2.getCenterY()) / 2 - 5);
+        if(c1!=null && c2!=null){
+            ui.line.setStartX(c1.getCenterX()); ui.line.setStartY(c1.getCenterY());
+            ui.line.setEndX(c2.getCenterX()); ui.line.setEndY(c2.getCenterY());
+            ui.label.setX((c1.getCenterX()+c2.getCenterX())/2);
+            ui.label.setY((c1.getCenterY()+c2.getCenterY())/2-5);
         }
     }
 
     private void applyCircularLayout() {
         int n = nodes.size();
         if (n == 0) return;
-        double baseRadius = Math.max(200, n * 20);
-        double radius = baseRadius * currentScale;
-        double centerX = graphPane.getPrefWidth() / 2;
-        double centerY = graphPane.getPrefHeight() / 2;
-        
+        double radius = 150 * currentScale; 
+        double centerX = 1000; double centerY = 1000;
         int i = 0;
         List<Integer> sortedKeys = nodes.keySet().stream().sorted().toList();
-        for (Integer vertexId : sortedKeys) {
+        for (Integer id : sortedKeys) {
             double angle = 2 * Math.PI * i / n - Math.PI / 2;
-            double x = centerX + radius * Math.cos(angle);
-            double y = centerY + radius * Math.sin(angle);
-            Circle circle = nodes.get(vertexId);
-            if (circle != null) {
-                circle.setCenterX(x); circle.setCenterY(y);
-                Text t = nodeLabels.get(vertexId);
-                if (t != null) { t.setX(x - 6); t.setY(y + 6); }
+            Circle c = nodes.get(id);
+            if (c != null) { 
+                double x = centerX + radius * Math.cos(angle);
+                double y = centerY + radius * Math.sin(angle);
+                c.setCenterX(x); c.setCenterY(y);
+                Text t = nodeLabels.get(id); if(t!=null) { t.setX(x-6); t.setY(y+6); }
             }
             i++;
         }
         updateAllEdges();
     }
-
-    public void removeVertex(int id) {
-        if (!nodes.containsKey(id)) return;
-        Circle circle = nodes.remove(id);
-        Text label = nodeLabels.remove(id);
-        if (circle != null) graphPane.getChildren().remove(circle);
-        if (label != null) graphPane.getChildren().remove(label);
-        graph.setVertexExists(id, false);
-        Iterator<Map.Entry<String, EdgeUI>> it = edges.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<String, EdgeUI> entry = it.next();
-            String key = entry.getKey();
-            String[] parts = key.split("-");
-            int from = Integer.parseInt(parts[0]);
-            int to = Integer.parseInt(parts[1]);
-            if (from == id || to == id) {
-                graph.delEdge(from, to);
-                graphPane.getChildren().removeAll(entry.getValue().line, entry.getValue().label);
-                it.remove();
-            }
-        }
-        updateMatrixDisplay();
-    }
-
-    public void addEdge(int from, int to, int weight) {
-        if (!nodes.containsKey(from)) addVertex(from);
-        if (!nodes.containsKey(to)) addVertex(to);
-        if (!nodes.containsKey(from) || !nodes.containsKey(to)) return;
-        
-        // 统一 Key
-        int min = Math.min(from, to);
-        int max = Math.max(from, to);
-        String edgeKey = min + "-" + max;
-        
-        if (edges.containsKey(edgeKey)) {
-            EdgeUI edgeUI = edges.get(edgeKey);
-            edgeUI.label.setText(String.valueOf(weight));
-            graph.setEdge(from, to, weight); 
-            return;
-        }
-        
-        graph.setEdge(from, to, weight);
-        Circle c1 = nodes.get(from); Circle c2 = nodes.get(to);
-        Line line = new Line(c1.getCenterX(), c1.getCenterY(), c2.getCenterX(), c2.getCenterY());
-        line.setStrokeWidth(2); line.setStroke(Color.GRAY);
-        Text text = new Text((c1.getCenterX() + c2.getCenterX()) / 2, (c1.getCenterY() + c2.getCenterY()) / 2 - 5, String.valueOf(weight));
-        text.setFill(Color.DARKRED);
-        text.setMouseTransparent(true); 
-        
-        graphPane.getChildren().add(0, line); 
-        graphPane.getChildren().add(text);
-        edges.put(edgeKey, new EdgeUI(line, text));
-        updateMatrixDisplay(); 
-    }
-
-    public void removeEdge(int from, int to) {
-        graph.delEdge(from, to);
-        String key = Math.min(from, to) + "-" + Math.max(from, to); 
-        EdgeUI edgeUI = edges.remove(key);
-        if (edgeUI != null) { graphPane.getChildren().removeAll(edgeUI.line, edgeUI.label); }
-        updateMatrixDisplay();
-    }
-    
+    // [补全] 保存图结构到文件
     public void saveGraph() {
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("保存邻接矩阵图 (DSL)");
+        fileChooser.setTitle("保存图 (DSL)");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Text Files", "*.txt"));
         fileChooser.setInitialFileName("matrix_graph.txt");
         File file = fileChooser.showSaveDialog(root.getScene().getWindow());
@@ -739,33 +816,18 @@ public class MatrixGraphUI {
         if (file == null) return;
         
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
-            writer.write("# Vertices Positions\n");
-            for (Map.Entry<Integer, Circle> entry : nodes.entrySet()) {
-                writer.write(String.format("POS %d %.2f %.2f\n", entry.getKey(), entry.getValue().getCenterX(), entry.getValue().getCenterY()));
-            }
-            
-            writer.write("\n# Edges\n");
-            int n = graph.verticesNumber();
-            for (int i = 0; i < n; i++) {
-                if (!graph.isVertexExists(i)) continue;
-                for (int j = i + 1; j < n; j++) {
-                    if (!graph.isVertexExists(j)) continue;
-                    int weight = graph.getEdge(i, j);
-                    if (weight != 0) {
-                        writer.write(String.format("%d -> %d : %d\n", i, j, weight));
-                    }
-                }
-            }
-            System.out.println("DSL 保存成功");
+            writer.write(getGraphDSL());
+            updateLog("DSL 保存成功");
         } catch (IOException ex) { 
             ex.printStackTrace(); 
-            matrixDisplay.setText("保存失败: " + ex.getMessage());
+            updateLog("保存失败: " + ex.getMessage());
         }
     }
-    
+
+    // [补全] 从文件加载图结构
     public void loadGraph() {
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("打开图文件 (DSL)");
+        fileChooser.setTitle("打开图 (DSL)");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Text Files", "*.txt"));
         File file = fileChooser.showOpenDialog(root.getScene().getWindow());
         
@@ -781,10 +843,10 @@ public class MatrixGraphUI {
             }
             resetToDefault(); 
             renderFromDSL(dslContent.toString());
-            System.out.println("DSL 加载成功");
+            updateLog("DSL 加载成功");
         } catch (Exception ex) { 
             ex.printStackTrace(); 
-            matrixDisplay.setText("加载失败: " + ex.getMessage());
+            updateLog("加载失败: " + ex.getMessage());
         }
     }
 }
